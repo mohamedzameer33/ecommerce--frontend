@@ -190,7 +190,7 @@ const AdminPanel = () => {
     }
 
     try {
-      await axios.post('http://localhost:8080/api/products', {
+      await axios.post('https://ecommerce-backend-60zx.onrender.com/api/products', {
         ...newProduct,
         price: parseFloat(newProduct.price),
         stock: parseInt(newProduct.stock)

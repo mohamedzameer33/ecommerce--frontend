@@ -21,7 +21,7 @@ const ProductList = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get('http://localhost:8080/api/products');
+        const res = await axios.get('https://ecommerce-backend-60zx.onrender.com/api/products');
         setProducts(res.data);
         setFilteredProducts(res.data);
       } catch (err) {

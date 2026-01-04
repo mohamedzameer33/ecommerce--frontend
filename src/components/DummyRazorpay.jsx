@@ -59,7 +59,7 @@ const DummyRazorpay = () => {
       await new Promise(resolve => setTimeout(resolve, 1800));
 
       // Complete order on backend
-      await axios.post(`http://localhost:8080/api/orders/${orderId}/complete`);
+      await axios.post(`https://ecommerce-backend-60zx.onrender.com/api/orders/${orderId}/complete`);
 
     alert(`Payment Successful! 🎉 Order ID: ${orderId}`);
 navigate(`/order-confirmation/${orderId}`); // New route

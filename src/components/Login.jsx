@@ -17,7 +17,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:8080/api/auth/login', {
+      const res = await axios.post('https://ecommerce-backend-60zx.onrender.com/api/auth/login', {
         username,
         password,
       });
