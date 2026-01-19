@@ -15,7 +15,7 @@ const AdminLogin = () => {
     setLoading(true);
 
     try {
-      await axios.post('https://ecommerce-backend-60zx.onrender.com/api/admin/login', { username, password });
+      await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/admin/login', { username, password });
       localStorage.setItem('admin', 'true');
       navigate('/admin/panel');
     } catch (err) {
