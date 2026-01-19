@@ -14,11 +14,13 @@ const DummyRazorpay = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Fetch product name from order details (optional enhancement)
+  const BACKEND_URL = 'https://ecommerce-backend-production-8455.up.railway.app';
+
+  // Fetch product name from order details
   useEffect(() => {
     const fetchOrderDetails = async () => {
       try {
-        const res = await axios.get(`http://ecommerce-backend-production-8455.up.railway.app/api/orders/${orderId}`);
+        const res = await axios.get(`${BACKEND_URL}/api/orders/${orderId}`);
         setProductName(res.data.product?.name || 'Unknown Product');
       } catch (err) {
         setProductName('Product Purchase');
@@ -59,10 +61,10 @@ const DummyRazorpay = () => {
       await new Promise(resolve => setTimeout(resolve, 1800));
 
       // Complete order on backend
-      await axios.post(`http://ecommerce-backend-production-8455.up.railway.app/api/orders/${orderId}/complete`);
+      await axios.post(`${BACKEND_URL}/api/orders/${orderId}/complete`);
 
-    alert(`Payment Successful! 🎉 Order ID: ${orderId}`);
-navigate(`/order-confirmation/${orderId}`); // New route
+      alert(`Payment Successful! 🎉 Order ID: ${orderId}`);
+      navigate(`/order-confirmation/${orderId}`);
     } catch (err) {
       const msg = err.response?.data || 'Payment failed. Please try again.';
       setError(msg);
@@ -70,6 +72,7 @@ navigate(`/order-confirmation/${orderId}`); // New route
       setLoading(false);
     }
   };
+
 
   return (
     <>
