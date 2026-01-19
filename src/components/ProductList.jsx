@@ -21,7 +21,7 @@ const ProductList = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get('https://ecommerce-backend-60zx.onrender.com/api/products');
+        const res = await axios.get('https://ecommerce-backend-production-8455.up.railway.app/api/products');
         setProducts(res.data);
         setFilteredProducts(res.data);
       } catch (err) {
