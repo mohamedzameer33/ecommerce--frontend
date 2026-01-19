@@ -18,7 +18,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post('https://ecommerce-backend-60zx.onrender.com/api/auth/register', {
+      const res = await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/auth/register', {
         username,
         password,
         email,
