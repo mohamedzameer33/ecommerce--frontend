@@ -54,8 +54,8 @@ const AdminPanel = () => {
 
     try {
       const [completedRes, productsRes] = await Promise.all([
-        axios.get('https://ecommerce-backend-production-8455.up.railway.app//api/admin/orders/completed'),
-        axios.get('https://ecommerce-backend-production-8455.up.railway.app//api/products')
+        axios.get('https://ecommerce-backend-production-8455.up.railway.app/api/admin/orders/completed'),
+        axios.get('https://ecommerce-backend-production-8455.up.railway.app/api/products')
       ]);
 
       const completed = Array.isArray(completedRes.data) ? completedRes.data : [];
