@@ -190,7 +190,7 @@ const AdminPanel = () => {
     }
 
     try {
-      await axios.post('https://ecommerce-backend-60zx.onrender.com/api/products', {
+      await axios.post('https://ecommerce-backend-production-8455.up.railway.app//api/products', {
         ...newProduct,
         price: parseFloat(newProduct.price),
         stock: parseInt(newProduct.stock)
@@ -217,7 +217,7 @@ const AdminPanel = () => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
 
     try {
-      await axios.delete(`http://localhost:8080/api/products/${id}`);
+      await axios.delete(`https://ecommerce-backend-production-8455.up.railway.app/api/products/${id}`);
       alert('Product deleted successfully');
       fetchData();
     } catch (error) {
