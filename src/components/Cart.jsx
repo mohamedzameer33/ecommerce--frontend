@@ -63,7 +63,7 @@ const Cart = () => {
           quantity: item.quantity
         };
 
-        const res = await axios.post('https://ecommerce-backend-60zx.onrender.com/api/orders', payload);
+        const res = await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/orders', payload);
         lastOrderId = res.data.id; // Capture the last order ID
       }
 
