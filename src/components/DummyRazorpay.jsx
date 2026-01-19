@@ -18,7 +18,7 @@ const DummyRazorpay = () => {
   useEffect(() => {
     const fetchOrderDetails = async () => {
       try {
-        const res = await axios.get(`http://localhost:8080/api/orders/${orderId}`);
+        const res = await axios.get(`http://ecommerce-backend-production-8455.up.railway.app/api/orders/${orderId}`);
         setProductName(res.data.product?.name || 'Unknown Product');
       } catch (err) {
         setProductName('Product Purchase');
