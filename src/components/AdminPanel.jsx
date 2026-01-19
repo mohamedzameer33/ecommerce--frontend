@@ -190,7 +190,7 @@ const AdminPanel = () => {
     }
 
     try {
-      await axios.post('https://ecommerce-backend-production-8455.up.railway.app//api/products', {
+      await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/products', {
         ...newProduct,
         price: parseFloat(newProduct.price),
         stock: parseInt(newProduct.stock)
