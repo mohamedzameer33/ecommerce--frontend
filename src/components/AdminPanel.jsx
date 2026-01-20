@@ -507,7 +507,7 @@ const AdminPanel = () => {
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-label">Total Revenue</div>
-              <div className="stat-value">${stats.totalEarned}</div>
+              <div className="stat-value">₹{stats.totalEarned}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">Items Sold</div>
@@ -593,7 +593,7 @@ const AdminPanel = () => {
                     <tr key={p.id}>
                       <td>{p.id}</td>
                       <td>{p.name}</td>
-                      <td>${Number(p.price).toFixed(2)}</td>
+                      <td>₹{Number(p.price).toFixed(2)}</td>
                       <td>{p.stock}</td>
                       <td>
                         <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>
