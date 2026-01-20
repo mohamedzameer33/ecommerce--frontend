@@ -37,7 +37,7 @@ function App() {
         <header className="site-header">
           <div className="header-inner">
             <Link to="/" className="logo">
-              <h1>E-Commerce</h1>
+              <h1>Zam E-Commerce</h1>
             </Link>
 
             <div className="search-container">
@@ -118,11 +118,11 @@ function App() {
         {/* ── FOOTER ──────────────────────────────────────────────── */}
         <footer className="site-footer">
           <div className="footer-content">
-            <p>© {new Date().getFullYear()} E-Commerce App. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Zam E-Commerce App. All rights reserved.</p>
             <div className="footer-links">
               <a href="#">Privacy Policy</a>
               <a href="#">Terms of Service</a>
-              <a href="#">Contact</a>
+              <a href="https://portfolio-zameer.netlify.app/">Contact</a>
             </div>
           </div>
         </footer>
