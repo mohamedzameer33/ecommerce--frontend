@@ -424,7 +424,7 @@ const ProductList = () => {
             >
               Grid
             </button>
-            <button
+            <button  style={{ color: 'black' }}
               className={`view-btn ${viewMode === "list" ? "active" : ""}`}
               onClick={() => setViewMode("list")}
             >
