@@ -410,7 +410,7 @@ const ProductList = () => {
 
       <div className="shop-container">
         <div className="top-bar">
-          <button  style={{ color: 'black' }}
+          <button style={{ color: "black" }}
             className="toggle-filter"
             onClick={() => setShowFilters(!showFilters)}
           >
@@ -418,19 +418,19 @@ const ProductList = () => {
           </button>
 
           <div className="view-toggle">
-            <button  style={{ color: 'black' }}
+            <button style={{ color: "black" }}
               className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
               onClick={() => setViewMode("grid")}
             >
               Grid
             </button>
-            <button  style={{ color: 'black' }}
+            <button style={{ color: "black" }}
               className={`view-btn ${viewMode === "list" ? "active" : ""}`}
               onClick={() => setViewMode("list")}
             >
               List
             </button>
-            <button  style={{ color: 'black' }} className="clear-btn" onClick={clearFilters}>
+            <button style={{ color: "black" }} className="clear-btn" onClick={clearFilters}>
               Clear Filters
             </button>
           </div>
@@ -444,9 +444,9 @@ const ProductList = () => {
 
         <div className="shop-layout">
           <aside className="filters">
-      <div className="filter-title" style={{ color: 'black' }}>
-  Sort & Filter
-</div>
+            <div className="filter-title" style={{ color: "black" }}>
+              Sort & Filter
+            </div>
 
             <select
               className="sort-select"
@@ -505,7 +505,7 @@ const ProductList = () => {
                     className={`card ${viewMode === "list" ? "list-card" : ""}`}
                   >
                     <span className={`stock-badge ${out ? "out" : ""}`}>
-                      {out ? "Out of Stock" : "In Stock"}
+                      {out ? "Out of Stock" : `${product.stock} In Stock`}
                     </span>
 
                     <button
