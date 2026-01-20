@@ -490,7 +490,7 @@ const AdminPanel = () => {
       <div className="admin-layout">
         <div className="sidebar">
           <h2>Admin Dashboard</h2>
-          <p>Full control of your store</p>
+          <p>Control Center</p>
           <button className="logout-btn" onClick={handleLogout}>
             Logout
           </button>
