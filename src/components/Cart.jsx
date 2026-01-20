@@ -14,48 +14,66 @@ const Cart = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [promoCode, setPromoCode] = useState("");
+  const [discount, setDiscount] = useState(0);
+
   if (!user) {
     navigate("/login");
     return null;
   }
 
-  if (cart.length === 0) {
-    return (
-      <div className="empty-cart">
-        <h2>Your Cart is Empty</h2>
-        <p><a href="/">Go shopping!</a></p>
-      </div>
-    );
-  }
-
-  const total = cart.reduce(
+  const subtotal = cart.reduce(
     (sum, item) => sum + item.price * (item.quantity || 1),
     0
   );
 
+  const shipping = subtotal > 0 ? 49 : 0;
+  const total = Math.max(0, subtotal + shipping - discount);
+
   const removeItem = (itemId) => {
-    if (!window.confirm("Remove this item?")) return;
     const updatedCart = cart.filter(item => item.id !== itemId);
     setCart(updatedCart);
     localStorage.setItem("cart", JSON.stringify(updatedCart));
   };
 
   const clearCart = () => {
-    if (!window.confirm("Clear entire cart?")) return;
     setCart([]);
     localStorage.removeItem("cart");
   };
 
+  const updateQuantity = (id, type) => {
+    const updated = cart.map(item => {
+      if (item.id === id) {
+        let newQty = type === "inc" ? (item.quantity || 1) + 1 : (item.quantity || 1) - 1;
+        if (newQty < 1) newQty = 1;
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    });
+
+    setCart(updated);
+    localStorage.setItem("cart", JSON.stringify(updated));
+  };
+
+  const applyPromo = () => {
+    if (promoCode.toUpperCase() === "SAVE50") {
+      setDiscount(50);
+    } else if (promoCode.toUpperCase() === "SAVE100") {
+      setDiscount(100);
+    } else {
+      alert("Invalid promo code");
+      setDiscount(0);
+    }
+  };
+
   const handleProceedToPayment = async () => {
     if (loading) return;
-
     setLoading(true);
     setError(null);
 
     let lastOrderId = null;
 
     try {
-      // Place each cart item as a separate order
       for (const item of cart) {
         const payload = {
           user: { id: user.id },
@@ -63,242 +81,327 @@ const Cart = () => {
           quantity: item.quantity
         };
 
-        const res = await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/orders', payload);
-        lastOrderId = res.data.id; // Capture the last order ID
+        const res = await axios.post(
+          'https://ecommerce-backend-production-8455.up.railway.app/api/orders',
+          payload
+        );
+        lastOrderId = res.data.id;
       }
 
-      // Success: clear cart and go directly to DummyRazorpay
-      alert('Order(s) placed successfully! Redirecting to payment...');
       localStorage.removeItem('cart');
-
-      // Navigate to payment page with the real order ID
-      if (lastOrderId) {
-        navigate(`/payment/${lastOrderId}`);
-      } else {
-        navigate('/');
-      }
+      navigate(lastOrderId ? `/payment/${lastOrderId}` : "/");
     } catch (err) {
-      console.error('Order error:', err);
       const msg = err.response?.data || err.message || 'Failed to place order';
       setError(msg);
-      alert('Error: ' + msg);
     } finally {
       setLoading(false);
     }
   };
 
+  if (cart.length === 0) {
+    return (
+      <>
+        <style>{`
+          .empty-cart {
+            min-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+          }
+          .empty-cart a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+          }
+        `}</style>
+        <div className="empty-cart">
+          <h2>Your Cart is Empty</h2>
+          <a href="/">Go shopping</a>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <style>{`
+        * {
+          box-sizing: border-box;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+        }
+
         .cart-container {
-          max-width: 900px;
+          max-width: 1100px;
           margin: 2rem auto;
-          padding: 0 1rem;
-          font-family: system-ui, -apple-system, sans-serif;
+          padding: 1rem;
+        }
+
+        .cart-grid {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: 1.5rem;
+        }
+
+        .cart-card {
+          background: white;
+          border-radius: 14px;
+          padding: 1rem;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .cart-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 1.5rem;
-          flex-wrap: wrap;
-          gap: 1rem;
+          margin-bottom: 1rem;
         }
 
         .cart-item {
           display: grid;
-          grid-template-columns: 100px 1fr 140px 40px;
+          grid-template-columns: 90px 1fr 140px 120px 40px;
           gap: 1rem;
           padding: 1rem 0;
-          border-bottom: 1px solid #eee;
+          border-bottom: 1px solid #e5e7eb;
           align-items: center;
         }
 
         .cart-item-image {
-          width: 100px;
-          height: 100px;
+          width: 90px;
+          height: 90px;
           object-fit: cover;
-          border-radius: 8px;
-          background: #f5f5f5;
+          border-radius: 10px;
+          background: #f3f4f6;
         }
 
-        .cart-item-details h3 {
-          margin: 0 0 0.4rem;
-          font-size: 1.1rem;
+        .qty-box {
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
 
-        .cart-item-details p {
-          margin: 0.3rem 0;
-          color: #555;
+        .qty-btn {
+          width: 28px;
+          height: 28px;
+          border: none;
+          border-radius: 6px;
+          background: #e5e7eb;
+          cursor: pointer;
+          font-weight: bold;
+        }
+
+        .qty-btn:hover {
+          background: #d1d5db;
         }
 
         .price {
-          font-weight: 600;
-          font-size: 1.1rem;
-          text-align: right;
+          font-weight: 700;
+          font-size: 1.05rem;
         }
 
         .remove-btn {
-          background: #ff4d4f;
+          background: #ef4444;
           color: white;
           border: none;
-          border-radius: 6px;
+          border-radius: 8px;
           width: 32px;
           height: 32px;
-          font-size: 1.2rem;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
         }
 
-        .remove-btn:hover {
-          background: #d9363e;
+        .summary-title {
+          font-weight: 800;
+          margin-bottom: 1rem;
         }
 
-        .cart-actions {
+        .summary-row {
           display: flex;
           justify-content: space-between;
-          margin: 2rem 0;
-          flex-wrap: wrap;
-          gap: 1rem;
+          margin: 0.6rem 0;
         }
 
-        .clear-cart-btn {
-          background: #ff4d4f;
-          color: white;
-          border: none;
-          padding: 0.7rem 1.4rem;
+        .promo-box {
+          display: flex;
+          gap: 0.5rem;
+          margin: 1rem 0;
+        }
+
+        .promo-input {
+          flex: 1;
+          padding: 0.6rem;
           border-radius: 8px;
-          cursor: pointer;
-          font-weight: 500;
+          border: 1px solid #e5e7eb;
         }
 
-        .clear-cart-btn:hover {
-          background: #d9363e;
-        }
-
-        .payment-btn {
-          background: #28a745;
-          color: white;
+        .promo-btn {
+          padding: 0.6rem 1rem;
           border: none;
-          padding: 0.7rem 1.4rem;
           border-radius: 8px;
-          font-weight: 600;
+          background: #2563eb;
+          color: white;
           cursor: pointer;
         }
 
-        .payment-btn:hover:not(:disabled) {
-          background: #218838;
+        .checkout-btn {
+          width: 100%;
+          padding: 0.8rem;
+          border: none;
+          border-radius: 10px;
+          background: #16a34a;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+          margin-top: 0.8rem;
         }
 
-        .payment-btn:disabled {
-          background: #6c757d;
+        .checkout-btn:disabled {
+          background: #9ca3af;
           cursor: not-allowed;
         }
 
-        .total-section {
-          text-align: right;
-          font-size: 1.5rem;
-          margin: 1.5rem 0;
-          padding-top: 1rem;
-          border-top: 2px solid #eee;
+        .clear-btn {
+          width: 100%;
+          padding: 0.7rem;
+          border: none;
+          border-radius: 10px;
+          background: #ef4444;
+          color: white;
+          font-weight: 600;
+          margin-top: 0.6rem;
+          cursor: pointer;
         }
 
-        .error-message {
-          color: #dc3545;
-          background: #f8d7da;
-          padding: 1rem;
+        .error-box {
+          background: #fee2e2;
+          color: #7f1d1d;
+          padding: 0.8rem;
           border-radius: 10px;
-          margin: 1rem 0;
+          margin-bottom: 1rem;
           text-align: center;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 900px) {
+          .cart-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 700px) {
           .cart-item {
             grid-template-columns: 80px 1fr;
-            grid-template-rows: auto auto;
-            gap: 0.8rem;
-          }
-
-          .cart-item-image {
-            width: 80px;
-            height: 80px;
-            grid-row: 1 / 3;
+            grid-template-rows: auto auto auto;
+            gap: 0.6rem;
           }
 
           .price {
             grid-column: 2;
-            text-align: left;
+          }
+
+          .qty-box {
+            grid-column: 2;
           }
 
           .remove-btn {
             grid-column: 2;
             justify-self: end;
           }
-
-          .cart-actions {
-            flex-direction: column;
-            align-items: stretch;
-          }
         }
       `}</style>
 
       <div className="cart-container">
-        <div className="cart-header">
-          <h2>Your Cart ({cart.length} {cart.length === 1 ? "item" : "items"})</h2>
-        </div>
+        {error && <div className="error-box">{error}</div>}
 
-        {cart.map((item) => (
-          <div key={item.id} className="cart-item">
-            <img
-              src={item.imageUrl || "https://via.placeholder.com/100?text=No+Img"}
-              alt={item.name}
-              className="cart-item-image"
-              onError={(e) => (e.target.src = "https://via.placeholder.com/100?text=No+Img")}
-            />
-
-            <div className="cart-item-details">
-              <h3>{item.name}</h3>
-              <p>{item.description || "No description available"}</p>
-              <div>
-                Qty: <strong>{item.quantity || 1}</strong> × ${(item.price || 0).toFixed(2)}
-              </div>
+        <div className="cart-grid">
+          <div className="cart-card">
+            <div className="cart-header">
+              <h2>Your Cart ({cart.length})</h2>
             </div>
 
-            <div className="price">
-              ${(item.price * (item.quantity || 1)).toFixed(2)}
+            {cart.map((item) => (
+              <div key={item.id} className="cart-item">
+                <img
+                  src={item.imageUrl || "https://via.placeholder.com/100?text=No+Img"}
+                  alt={item.name}
+                  className="cart-item-image"
+                />
+
+                <div>
+                  <h3>{item.name}</h3>
+                  <p style={{ color: "#6b7280", fontSize: "0.9rem" }}>
+                    {item.description || "No description"}
+                  </p>
+                </div>
+
+                <div className="price">
+                  ${(item.price * (item.quantity || 1)).toFixed(2)}
+                </div>
+
+                <div className="qty-box">
+                  <button className="qty-btn" onClick={() => updateQuantity(item.id, "dec")}>-</button>
+                  <strong>{item.quantity || 1}</strong>
+                  <button className="qty-btn" onClick={() => updateQuantity(item.id, "inc")}>+</button>
+                </div>
+
+                <button
+                  className="remove-btn"
+                  onClick={() => removeItem(item.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="cart-card">
+            <div className="summary-title">Order Summary</div>
+
+            <div className="summary-row">
+              <span>Subtotal</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+
+            <div className="summary-row">
+              <span>Shipping</span>
+              <span>${shipping.toFixed(2)}</span>
+            </div>
+
+            {discount > 0 && (
+              <div className="summary-row" style={{ color: "#16a34a" }}>
+                <span>Discount</span>
+                <span>-${discount.toFixed(2)}</span>
+              </div>
+            )}
+
+            <div className="summary-row" style={{ fontWeight: 800 }}>
+              <span>Total</span>
+              <span>${total.toFixed(2)}</span>
+            </div>
+
+            <div className="promo-box">
+              <input
+                className="promo-input"
+                placeholder="Promo code"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+              />
+              <button className="promo-btn" onClick={applyPromo}>
+                Apply
+              </button>
             </div>
 
             <button
-              className="remove-btn"
-              onClick={() => removeItem(item.id)}
-              title="Remove item"
+              className="checkout-btn"
+              onClick={handleProceedToPayment}
+              disabled={loading}
             >
-              ×
+              {loading ? "Processing..." : "Proceed to Payment"}
+            </button>
+
+            <button className="clear-btn" onClick={clearCart}>
+              Clear Cart
             </button>
           </div>
-        ))}
-
-        <div className="total-section">
-          <strong>Total: ${total.toFixed(2)}</strong>
-        </div>
-
-        {error && <div className="error-message">{error}</div>}
-
-        <div className="cart-actions">
-          <button className="clear-cart-btn" onClick={clearCart}>
-            Clear Cart
-          </button>
-
-          <button
-            className="payment-btn"
-            onClick={handleProceedToPayment}
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : 'Proceed to Payment →'}
-          </button>
         </div>
       </div>
     </>
