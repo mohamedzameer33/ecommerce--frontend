@@ -4,9 +4,6 @@ import { UserContext } from "../context/UserContext";
 import { SearchContext } from "../App";
 import { useNavigate } from "react-router-dom";
 
-const API_URL =
-  "https://ecommerce-backend-production-8455.up.railway.app/api/products";
-
 const ProductList = () => {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -16,6 +13,8 @@ const ProductList = () => {
   const [priceRange, setPriceRange] = useState([0, Infinity]);
   const [showFilters, setShowFilters] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [viewMode, setViewMode] = useState("grid");
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const { user } = useContext(UserContext);
   const { searchQuery } = useContext(SearchContext);
@@ -23,11 +22,13 @@ const ProductList = () => {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const res = await axios.get(API_URL);
+      const res = await axios.get(
+        "https://ecommerce-backend-production-8455.up.railway.app/api/products"
+      );
       setProducts(res.data);
       setLastUpdated(new Date().toLocaleTimeString());
       setError(null);
-    } catch (err) {
+    } catch {
       setError("Failed to load products. Please try again later.");
     } finally {
       setLoading(false);
@@ -121,79 +122,375 @@ const ProductList = () => {
     localStorage.setItem("wishlist", JSON.stringify(wishlist));
   };
 
+  const clearFilters = () => {
+    setSortOption("default");
+    setPriceRange([0, Infinity]);
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-6">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-        <aside
-          className={`bg-white p-5 rounded-xl shadow-md transition-all ${
-            showFilters ? "block" : "hidden lg:block"
-          }`}
-        >
-          <h3 className="text-lg font-bold mb-4">Filters & Sort</h3>
+    <>
+      <style>{`
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+        }
 
-          <select
-            className="w-full border p-2 rounded mb-4"
-            value={sortOption}
-            onChange={(e) => setSortOption(e.target.value)}
-          >
-            <option value="default">Sort by</option>
-            <option value="price-low">Low to High</option>
-            <option value="price-high">High to Low</option>
-            <option value="name-az">A to Z</option>
-            <option value="name-za">Z to A</option>
-          </select>
+        .shop-container {
+          background: #f3f4f6;
+          min-height: 100vh;
+          padding: 1rem;
+        }
 
-          <div className="mb-4">
-            <p className="font-semibold mb-2">Price Range</p>
-            <input
-              type="number"
-              placeholder="Min"
-              className="w-full border p-2 rounded mb-2"
-              onChange={(e) =>
-                setPriceRange([Number(e.target.value) || 0, priceRange[1]])
-              }
-            />
-            <input
-              type="number"
-              placeholder="Max"
-              className="w-full border p-2 rounded"
-              onChange={(e) =>
-                setPriceRange([priceRange[0], Number(e.target.value) || Infinity])
-              }
-            />
-          </div>
+        .top-bar {
+          max-width: 1400px;
+          margin: 0 auto 1rem auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.8rem;
+        }
 
+        .view-toggle {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .view-btn {
+          padding: 0.6rem 0.8rem;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          background: white;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .view-btn.active {
+          background: #2563eb;
+          color: white;
+          border-color: #2563eb;
+        }
+
+        .clear-btn {
+          padding: 0.6rem 0.8rem;
+          border-radius: 8px;
+          border: none;
+          background: #e5e7eb;
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        .shop-layout {
+          max-width: 1400px;
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 1.5rem;
+        }
+
+        .filters {
+          background: white;
+          padding: 1.2rem;
+          border-radius: 14px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+          position: sticky;
+          top: 20px;
+          height: fit-content;
+          transition: transform 0.3s ease;
+        }
+
+        .filter-title {
+          font-weight: 700;
+          font-size: 1.1rem;
+          margin-bottom: 0.8rem;
+        }
+
+        .sort-select, .price-input {
+          width: 100%;
+          padding: 0.7rem;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          margin-bottom: 0.8rem;
+        }
+
+        .apply-btn {
+          width: 100%;
+          padding: 0.7rem;
+          background: #2563eb;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .toggle-filter {
+          display: none;
+          width: 100%;
+          padding: 0.7rem;
+          margin-bottom: 1rem;
+          border-radius: 10px;
+          border: none;
+          background: #e5e7eb;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .products-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 1.2rem;
+        }
+
+        .products-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .card {
+          background: white;
+          border-radius: 14px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          position: relative;
+        }
+
+        .list-card {
+          display: grid;
+          grid-template-columns: 220px 1fr;
+          gap: 1rem;
+          padding: 1rem;
+        }
+
+        .wishlist {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: white;
+          border: none;
+          border-radius: 50%;
+          width: 34px;
+          height: 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .stock-badge {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          background: #16a34a;
+          color: white;
+          padding: 0.3rem 0.6rem;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+
+        .stock-badge.out {
+          background: #dc2626;
+        }
+
+        .product-img {
+          width: 100%;
+          height: 220px;
+          object-fit: cover;
+        }
+
+        .list-card .product-img {
+          height: 180px;
+          border-radius: 10px;
+        }
+
+        .card-body {
+          padding: 1rem;
+        }
+
+        .p-name {
+          font-size: 1.05rem;
+          font-weight: 700;
+          margin-bottom: 0.3rem;
+        }
+
+        .p-desc {
+          font-size: 0.9rem;
+          color: #6b7280;
+          margin-bottom: 0.6rem;
+        }
+
+        .p-price {
+          font-size: 1.1rem;
+          font-weight: 800;
+          color: #16a34a;
+          margin-bottom: 0.4rem;
+        }
+
+        .add-btn {
+          width: 100%;
+          padding: 0.7rem;
+          border: none;
+          border-radius: 8px;
+          background: #2563eb;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+          position: relative;
+        }
+
+        .cart-badge {
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          background: #dc2626;
+          color: white;
+          border-radius: 50%;
+          padding: 2px 6px;
+          font-size: 0.75rem;
+        }
+
+        .scroll-top {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: #2563eb;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 44px;
+          height: 44px;
+          cursor: pointer;
+          font-size: 1.2rem;
+        }
+
+        @media (max-width: 1024px) {
+          .shop-layout {
+            grid-template-columns: 1fr;
+          }
+
+          .filters {
+            display: ${showFilters ? "block" : "none"};
+          }
+
+          .toggle-filter {
+            display: block;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .products-grid {
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          }
+
+          .list-card {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .products-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <div className="shop-container">
+        <div className="top-bar">
           <button
-            className="w-full bg-blue-600 text-white p-2 rounded"
-            onClick={() => setShowFilters(false)}
-          >
-            Apply
-          </button>
-        </aside>
-
-        <section>
-          <button
-            className="lg:hidden w-full bg-gray-200 p-2 rounded mb-4"
+            className="toggle-filter"
             onClick={() => setShowFilters(!showFilters)}
           >
             {showFilters ? "Hide Filters" : "Show Filters"}
           </button>
 
-          {error && (
-            <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+          <div className="view-toggle">
+            <button
+              className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+              onClick={() => setViewMode("grid")}
+            >
+              Grid
+            </button>
+            <button
+              className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+              onClick={() => setViewMode("list")}
+            >
+              List
+            </button>
+            <button className="clear-btn" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
+        </div>
 
-          <p className="text-sm text-gray-500 mb-3">
-            Last updated: {lastUpdated || "just now"}
-          </p>
+        {error && <div className="error">{error}</div>}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredProducts.length === 0 ? (
-              <p className="col-span-full text-center text-gray-500">
-                No products found.
-              </p>
+        <p style={{ marginBottom: "10px", color: "#6b7280" }}>
+          Last updated: {lastUpdated || "just now"}
+        </p>
+
+        <div className="shop-layout">
+          <aside className="filters">
+            <div className="filter-title">Sort & Filter</div>
+
+            <select
+              className="sort-select"
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+            >
+              <option value="default">Sort by</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="name-az">Name: A to Z</option>
+              <option value="name-za">Name: Z to A</option>
+            </select>
+
+            <input
+              type="number"
+              placeholder="Min price"
+              className="price-input"
+              onChange={(e) =>
+                setPriceRange([Number(e.target.value) || 0, priceRange[1]])
+              }
+            />
+
+            <input
+              type="number"
+              placeholder="Max price"
+              className="price-input"
+              onChange={(e) =>
+                setPriceRange([priceRange[0], Number(e.target.value) || Infinity])
+              }
+            />
+
+            <button
+              className="apply-btn"
+              onClick={() => setShowFilters(false)}
+            >
+              Apply
+            </button>
+          </aside>
+
+          <section
+            className={viewMode === "grid" ? "products-grid" : "products-list"}
+          >
+            {loading ? (
+              <p>Loading products...</p>
+            ) : filteredProducts.length === 0 ? (
+              <p>No products found.</p>
             ) : (
               filteredProducts.map((product) => {
                 const qty = getCartQuantity(product.id);
@@ -203,12 +500,14 @@ const ProductList = () => {
                 return (
                   <div
                     key={product.id}
-                    className="bg-white rounded-xl shadow hover:shadow-xl transition-transform transform hover:-translate-y-1 overflow-hidden relative"
+                    className={`card ${viewMode === "list" ? "list-card" : ""}`}
                   >
+                    <span className={`stock-badge ${out ? "out" : ""}`}>
+                      {out ? "Out of Stock" : "In Stock"}
+                    </span>
+
                     <button
-                      className={`absolute top-3 right-3 bg-white p-2 rounded-full ${
-                        wish ? "text-red-500" : "text-gray-400"
-                      }`}
+                      className="wishlist"
                       onClick={() => toggleWishlist(product)}
                     >
                       {wish ? "❤️" : "🤍"}
@@ -220,53 +519,45 @@ const ProductList = () => {
                         "https://via.placeholder.com/400x300?text=No+Image"
                       }
                       alt={product.name}
-                      className="w-full h-56 object-cover"
+                      className="product-img"
+                      loading="lazy"
                     />
 
-                    <div className="p-4">
-                      <h3 className="font-bold text-lg">{product.name}</h3>
-                      <p className="text-sm text-gray-600 line-clamp-2">
+                    <div className="card-body">
+                      <div className="p-name">{product.name}</div>
+                      <div className="p-desc">
                         {product.description || "No description available."}
-                      </p>
-
-                      <p className="text-green-600 font-bold mt-2">
+                      </div>
+                      <div className="p-price">
                         ${product.price.toFixed(2)}
-                      </p>
-
-                      <p
-                        className={`text-sm ${
-                          out ? "text-red-500" : "text-green-600"
-                        }`}
-                      >
-                        {out ? "Out of Stock" : `In Stock: ${product.stock}`}
-                      </p>
-
-                      {qty > 0 && (
-                        <p className="text-sm text-blue-600 mt-1">
-                          In cart: {qty}
-                        </p>
-                      )}
+                      </div>
 
                       <button
                         disabled={out}
+                        className="add-btn"
                         onClick={() => addToCart(product)}
-                        className={`w-full mt-3 p-2 rounded text-white ${
-                          out
-                            ? "bg-gray-400"
-                            : "bg-blue-600 hover:bg-blue-700"
-                        }`}
                       >
                         {out ? "Out of Stock" : "Add to Cart"}
+                        {qty > 0 && <span className="cart-badge">{qty}</span>}
                       </button>
                     </div>
                   </div>
                 );
               })
             )}
-          </div>
-        </section>
+          </section>
+        </div>
+
+        {showScrollTop && (
+          <button
+            className="scroll-top"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            ↑
+          </button>
+        )}
       </div>
-    </div>
+    </>
   );
 };
 
