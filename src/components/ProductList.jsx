@@ -410,7 +410,7 @@ const ProductList = () => {
 
       <div className="shop-container">
         <div className="top-bar">
-          <button
+          <button  style={{ color: 'black' }}
             className="toggle-filter"
             onClick={() => setShowFilters(!showFilters)}
           >
@@ -418,7 +418,7 @@ const ProductList = () => {
           </button>
 
           <div className="view-toggle">
-            <button
+            <button  style={{ color: 'black' }}
               className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
               onClick={() => setViewMode("grid")}
             >
@@ -430,7 +430,7 @@ const ProductList = () => {
             >
               List
             </button>
-            <button className="clear-btn" onClick={clearFilters}>
+            <button  style={{ color: 'black' }} className="clear-btn" onClick={clearFilters}>
               Clear Filters
             </button>
           </div>
@@ -444,7 +444,9 @@ const ProductList = () => {
 
         <div className="shop-layout">
           <aside className="filters">
-            <div className="filter-title">Sort & Filter</div>
+      <div className="filter-title" style={{ color: 'black' }}>
+  Sort & Filter
+</div>
 
             <select
               className="sort-select"
