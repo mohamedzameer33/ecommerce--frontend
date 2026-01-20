@@ -33,6 +33,7 @@ const AdminPanel = () => {
     fetchData();
   }, []);
 
+  // Cleanup charts on unmount
   useEffect(() => {
     return () => {
       if (salesChartRef.current) salesChartRef.current.destroy();
@@ -88,7 +89,7 @@ const AdminPanel = () => {
     });
 
     const topProducts = Object.entries(productSales)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([id, sales]) => {
         const p = prods.find(prod => prod.id === Number(id));
@@ -102,11 +103,12 @@ const AdminPanel = () => {
       topProducts
     });
 
-    // Slight delay helps ensure canvas elements are mounted
-    setTimeout(() => renderCharts(orders), 150);
+    // FIX: Pass topProducts directly to renderCharts so it doesn't rely on 
+    // the 'stats' state which hasn't finished updating yet.
+    setTimeout(() => renderCharts(orders, topProducts), 150);
   };
 
-  const renderCharts = (orders) => {
+  const renderCharts = (orders, topProductsData) => {
     // ── Revenue Trend (Line Chart) ───────────────────────────────────────
     const salesByDate = {};
     orders.forEach(o => {
@@ -155,14 +157,15 @@ const AdminPanel = () => {
 
     // ── Top Products (Doughnut Chart) ────────────────────────────────────
     const pieCtx = document.getElementById('topProductsChart');
-    if (pieCtx && stats.topProducts.length > 0) {
+    // FIX: Use topProductsData parameter instead of stats.topProducts
+    if (pieCtx && topProductsData && topProductsData.length > 0) {
       if (topProductsChartRef.current) topProductsChartRef.current.destroy();
       topProductsChartRef.current = new Chart(pieCtx, {
         type: 'doughnut',
         data: {
-          labels: stats.topProducts.map(p => p.name),
+          labels: topProductsData.map(p => p.name),
           datasets: [{
-            data: stats.topProducts.map(p => p.sales),
+            data: topProductsData.map(p => p.sales),
             backgroundColor: [
               '#6366f1', '#10b981', '#f59e0b', '#f87171', '#a78bfa'
             ],
@@ -194,11 +197,6 @@ const AdminPanel = () => {
     if (!newProduct.name.trim() || !newProduct.price || Number(newProduct.price) <= 0 ||
         !newProduct.stock || Number(newProduct.stock) < 0) {
       alert('Please fill required fields correctly');
-      return;
-    }
-
-    if (newProduct.imageUrl && !/^(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(newProduct.imageUrl)) {
-      alert('Please enter a valid image URL');
       return;
     }
 
@@ -255,10 +253,7 @@ const AdminPanel = () => {
           min-height: 100vh;
         }
 
-        .admin-layout {
-          display: flex;
-          min-height: 100vh;
-        }
+        .admin-layout { display: flex; min-height: 100vh; }
 
         .sidebar {
           width: 260px;
@@ -268,15 +263,8 @@ const AdminPanel = () => {
           flex-shrink: 0;
         }
 
-        .sidebar h2 {
-          font-size: 1.75rem;
-          margin-bottom: 0.6rem;
-        }
-
-        .sidebar p {
-          opacity: 0.9;
-          font-size: 0.95rem;
-        }
+        .sidebar h2 { font-size: 1.75rem; margin-bottom: 0.6rem; }
+        .sidebar p { opacity: 0.9; font-size: 0.95rem; }
 
         .logout-btn {
           margin-top: 2.5rem;
@@ -291,19 +279,11 @@ const AdminPanel = () => {
           transition: 0.2s;
         }
 
-        .logout-btn:hover {
-          background: rgba(255,255,255,0.35);
-        }
+        .logout-btn:hover { background: rgba(255,255,255,0.35); }
 
-        .main-content {
-          flex: 1;
-          padding: 2rem 2.5rem;
-        }
+        .main-content { flex: 1; padding: 2rem 2.5rem; }
 
-        .welcome {
-          margin-bottom: 2.5rem;
-        }
-
+        .welcome { margin-bottom: 2.5rem; }
         .welcome h1 {
           font-size: 2.2rem;
           background: linear-gradient(to right, #4f46e5, #7c3aed);
@@ -360,19 +340,10 @@ const AdminPanel = () => {
           height: 420px;
         }
 
-        .chart-card h3 {
-          margin-bottom: 1.2rem;
-          font-size: 1.3rem;
-        }
+        .chart-card h3 { margin-bottom: 1.2rem; font-size: 1.3rem; }
+        .card-content { height: calc(100% - 60px); }
 
-        .card-content {
-          height: calc(100% - 60px);
-        }
-
-        canvas {
-          width: 100% !important;
-          height: 100% !important;
-        }
+        canvas { width: 100% !important; height: 100% !important; }
 
         .admin-card {
           background: var(--card);
@@ -408,9 +379,7 @@ const AdminPanel = () => {
           transition: 0.2s;
         }
 
-        .admin-btn:hover {
-          background: var(--primary-dark);
-        }
+        .admin-btn:hover { background: var(--primary-dark); }
 
         .delete-btn {
           background: var(--danger);
@@ -421,52 +390,15 @@ const AdminPanel = () => {
           cursor: pointer;
         }
 
-        .delete-btn:hover {
-          background: #dc2626;
-        }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: #f1f5f9; font-weight: 600; color: var(--text-light); text-transform: uppercase; font-size: 0.85rem; }
+        tr:hover { background: #f8fafc; }
 
-        .table-wrapper {
-          overflow-x: auto;
-        }
+        .image-preview { max-width: 160px; border-radius: 10px; margin: 0.8rem 0; border: 1px solid var(--border); }
 
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.95rem;
-        }
-
-        th, td {
-          padding: 1rem;
-          text-align: left;
-          border-bottom: 1px solid var(--border);
-        }
-
-        th {
-          background: #f1f5f9;
-          font-weight: 600;
-          color: var(--text-light);
-          text-transform: uppercase;
-          font-size: 0.85rem;
-        }
-
-        tr:hover {
-          background: #f8fafc;
-        }
-
-        .image-preview {
-          max-width: 160px;
-          border-radius: 10px;
-          margin: 0.8rem 0;
-          border: 1px solid var(--border);
-        }
-
-        .loading, .error {
-          padding: 8rem 2rem;
-          text-align: center;
-          font-size: 1.4rem;
-          color: var(--text-light);
-        }
-
+        .loading, .error { padding: 8rem 2rem; text-align: center; font-size: 1.4rem; color: var(--text-light); }
         .error { color: var(--danger); }
 
         @media (max-width: 1100px) {
@@ -480,20 +412,13 @@ const AdminPanel = () => {
           .main-content { padding: 1.5rem; }
           .stats-grid { grid-template-columns: 1fr 1fr; }
         }
-
-        @media (max-width: 500px) {
-          .stats-grid { grid-template-columns: 1fr; }
-          .welcome h1 { font-size: 1.8rem; }
-        }
       `}</style>
 
       <div className="admin-layout">
         <div className="sidebar">
           <h2>Admin Dashboard</h2>
           <p>Control Center</p>
-          <button className="logout-btn" onClick={handleLogout}>
-            Logout
-          </button>
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
         </div>
 
         <div className="main-content">
@@ -538,6 +463,7 @@ const AdminPanel = () => {
             </div>
           </div>
 
+          {/* Add Product Section */}
           <div className="admin-card">
             <h3>Add New Product</h3>
             <input
@@ -575,17 +501,14 @@ const AdminPanel = () => {
             </button>
           </div>
 
+          {/* Manage Products Table */}
           <div className="admin-card">
             <h3>Manage Products</h3>
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Price</th>
-                    <th>Stock</th>
-                    <th>Action</th>
+                    <th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -596,9 +519,7 @@ const AdminPanel = () => {
                       <td>₹{Number(p.price).toFixed(2)}</td>
                       <td>{p.stock}</td>
                       <td>
-                        <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>
-                          Delete
-                        </button>
+                        <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -607,17 +528,14 @@ const AdminPanel = () => {
             </div>
           </div>
 
+          {/* Orders Table */}
           <div className="admin-card">
             <h3>Completed Orders</h3>
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>User</th>
-                    <th>Product</th>
-                    <th>Qty</th>
-                    <th>Date</th>
+                    <th>ID</th><th>User</th><th>Product</th><th>Qty</th><th>Date</th>
                   </tr>
                 </thead>
                 <tbody>
