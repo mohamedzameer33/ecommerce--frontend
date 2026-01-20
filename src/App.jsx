@@ -189,7 +189,7 @@ function App() {
 
         .search-btn {
           position: absolute;
-          left: 12px;
+          left: 112px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
