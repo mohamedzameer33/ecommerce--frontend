@@ -531,7 +531,7 @@ const ProductList = () => {
                         {product.description || "No description available."}
                       </div>
                       <div className="p-price">
-                        ${product.price.toFixed(2)}
+                        ₹{product.price.toFixed(2)}
                       </div>
 
                       <button
