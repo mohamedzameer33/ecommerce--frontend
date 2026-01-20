@@ -25,7 +25,7 @@ const Register = () => {
       });
 
       login(res.data); // Auto login after successful registration
-      navigate('/');
+      navigate('/login');
     } catch (err) {
       const msg =
         err.response?.data?.message ||
@@ -210,7 +210,7 @@ const Register = () => {
       <div className="register-page">
         <div className="register-card">
           <div className="register-header">
-            <div className="register-logo">Shop</div>
+            <div className="register-logo">Zam Ecommerce</div>
             <h1 className="register-title">Create Account</h1>
             <p className="register-subtitle">Join us and start shopping</p>
           </div>
