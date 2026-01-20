@@ -44,8 +44,15 @@ const Cart = () => {
   const updateQuantity = (id, type) => {
     const updated = cart.map(item => {
       if (item.id === id) {
-        let newQty = type === "inc" ? (item.quantity || 1) + 1 : (item.quantity || 1) - 1;
+        const currentQty = item.quantity || 1;
+        const maxStock = item.stock ?? 10;
+
+        let newQty =
+          type === "inc" ? currentQty + 1 : currentQty - 1;
+
         if (newQty < 1) newQty = 1;
+        if (newQty > maxStock) newQty = maxStock;
+
         return { ...item, quantity: newQty };
       }
       return item;
@@ -160,7 +167,7 @@ const Cart = () => {
 
         .cart-item {
           display: grid;
-          grid-template-columns: 90px 1fr 140px 120px 40px;
+          grid-template-columns: 90px 1fr 140px 120px 50px;
           gap: 1rem;
           padding: 1rem 0;
           border-bottom: 1px solid #e5e7eb;
@@ -173,6 +180,14 @@ const Cart = () => {
           object-fit: cover;
           border-radius: 10px;
           background: #f3f4f6;
+        }
+
+        .stock-tag {
+          display: inline-block;
+          margin-top: 6px;
+          font-size: 0.85rem;
+          color: #16a34a;
+          font-weight: 600;
         }
 
         .qty-box {
@@ -204,10 +219,14 @@ const Cart = () => {
           background: #ef4444;
           color: white;
           border: none;
-          border-radius: 8px;
-          width: 32px;
-          height: 32px;
+          border-radius: 50%;
+          width: 34px;
+          height: 34px;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
         }
 
         .summary-title {
@@ -331,6 +350,7 @@ const Cart = () => {
                   <p style={{ color: "#6b7280", fontSize: "0.9rem" }}>
                     {item.description || "No description"}
                   </p>
+                  <span className="stock-tag">In Stock: {item.stock ?? 10}</span>
                 </div>
 
                 <div className="price">
