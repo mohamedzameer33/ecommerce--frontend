@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { UserContext } from '../context/UserContext.jsx';
 import { SearchContext } from '../App.jsx';
 import { useNavigate } from 'react-router-dom';
-import debounce from 'lodash.debounce'; // add lodash or implement yourself
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -16,10 +15,22 @@ const ProductList = () => {
   const [quickViewProduct, setQuickViewProduct] = useState(null);
 
   const { user } = useContext(UserContext);
-  const { searchQuery } = useContext(SearchContext);
+  const { searchQuery, setSearchQuery } = useContext(SearchContext);
   const navigate = useNavigate();
 
-  // ─── Fetch + Polling ───────────────────────────────────────────────
+  // Custom simple debounce using useRef + setTimeout
+  const debounceTimeout = useRef(null);
+
+  const debouncedSetSearch = (value) => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    debounceTimeout.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 350);
+  };
+
+  // Fetch products + polling
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -36,41 +47,42 @@ const ProductList = () => {
 
     fetchProducts();
 
-    // Poll every 8 seconds (adjust as needed — 1s is too aggressive)
-    const interval = setInterval(fetchProducts, 8000);
+    const interval = setInterval(fetchProducts, 12000); // 12 seconds is safer
 
     if (!user) localStorage.removeItem('cart');
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    };
   }, [user]);
 
-  // ─── Debounced Search + Filter/Sort Logic ──────────────────────────
+  // Filter + sort logic (runs when dependencies change)
   const applyFilters = useMemo(() => {
     let result = [...products];
 
-    // Search
-    if (searchQuery.trim()) {
+    // Search (using debounced value from context)
+    if (searchQuery?.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(p =>
         p.name?.toLowerCase().includes(q) ||
         p.description?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
+        p.category?.toLowerCase?.includes(q)
       );
     }
 
-    // Price range
+    // Price
     result = result.filter(p => {
       const price = Number(p.price);
       return price >= (priceRange.min || 0) && price <= (priceRange.max || Infinity);
     });
 
-    // Sorting
+    // Sort
     switch (sortOption) {
       case 'price-low':  result.sort((a, b) => a.price - b.price); break;
       case 'price-high': result.sort((a, b) => b.price - a.price); break;
       case 'name-az':    result.sort((a, b) => a.name.localeCompare(b.name)); break;
       case 'name-za':    result.sort((a, b) => b.name.localeCompare(a.name)); break;
-      case 'popularity': result.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
       default: break;
     }
 
@@ -81,14 +93,10 @@ const ProductList = () => {
     setFilteredProducts(applyFilters);
   }, [applyFilters]);
 
-  // ─── Cart & Wishlist Helpers ──────────────────────────────────────
+  // ─── Cart logic ────────────────────────────────────────────────────
   const getCartItem = (id) => {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]');
     return cart.find(item => item.id === id);
-  };
-
-  const updateCart = (newCart) => {
-    localStorage.setItem('cart', JSON.stringify(newCart));
   };
 
   const addToCart = (product, qty = 1) => {
@@ -115,10 +123,11 @@ const ProductList = () => {
       cart.push({ ...product, quantity: qty });
     }
 
-    updateCart(cart);
+    localStorage.setItem('cart', JSON.stringify(cart));
     alert(`Added ${qty} × ${product.name} to cart!`);
   };
 
+  // ─── Wishlist logic ────────────────────────────────────────────────
   const toggleWishlist = (product) => {
     if (!user) {
       alert('Login required');
@@ -145,7 +154,7 @@ const ProductList = () => {
     return wl.some(i => i.id === id);
   };
 
-  // ─── Quick View Modal ──────────────────────────────────────────────
+  // ─── Quick view ────────────────────────────────────────────────────
   const openQuickView = (product) => setQuickViewProduct(product);
   const closeQuickView = () => setQuickViewProduct(null);
 
@@ -169,54 +178,15 @@ const ProductList = () => {
 
         * { box-sizing: border-box; margin:0; padding:0; }
 
-        body {
-          font-family: system-ui, sans-serif;
-          background: var(--bg);
-          color: var(--text);
-        }
-
-        .shop-layout {
+        .shop-container {
           max-width: 1440px;
           margin: 0 auto;
           padding: 1.5rem;
+          background: var(--bg);
+          min-height: 100vh;
         }
 
-        .filters-panel {
-          background: var(--card);
-          border-radius: var(--radius);
-          box-shadow: var(--shadow);
-          padding: 1.5rem;
-          height: fit-content;
-          position: sticky;
-          top: 80px;
-        }
-
-        .filter-group {
-          margin-bottom: 1.5rem;
-        }
-
-        .filter-title {
-          font-size: 1.1rem;
-          font-weight: 600;
-          margin-bottom: 0.75rem;
-          color: var(--text);
-        }
-
-        select, input[type="number"] {
-          width: 100%;
-          padding: 0.7rem;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          font-size: 0.95rem;
-        }
-
-        select:focus, input:focus {
-          outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
-        }
-
-        .btn-filter-toggle {
+        .filter-toggle {
           display: none;
           width: 100%;
           padding: 0.9rem;
@@ -229,6 +199,16 @@ const ProductList = () => {
           cursor: pointer;
         }
 
+        .filters {
+          background: var(--card);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          padding: 1.5rem;
+          height: fit-content;
+          position: sticky;
+          top: 80px;
+        }
+
         .product-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -236,12 +216,11 @@ const ProductList = () => {
         }
 
         .product-card {
-          background: var(--card);
+          background: white;
           border-radius: var(--radius);
           overflow: hidden;
           box-shadow: var(--shadow);
-          transition: transform 0.25s ease, box-shadow 0.25s ease;
-          position: relative;
+          transition: transform 0.25s, box-shadow 0.25s;
         }
 
         .product-card:hover {
@@ -249,24 +228,24 @@ const ProductList = () => {
           box-shadow: 0 20px 35px -10px rgba(99,102,241,0.18);
         }
 
-        .product-image-wrapper {
-          position: relative;
+        .product-image-container {
           height: 260px;
           overflow: hidden;
+          position: relative;
         }
 
         .product-image {
           width: 100%;
           height: 100%;
           object-fit: cover;
-          transition: transform 0.4s ease;
+          transition: transform 0.4s;
         }
 
         .product-card:hover .product-image {
           transform: scale(1.08);
         }
 
-        .wishlist-icon {
+        .wishlist-btn {
           position: absolute;
           top: 12px;
           right: 12px;
@@ -278,16 +257,15 @@ const ProductList = () => {
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: all 0.2s;
           z-index: 10;
         }
 
-        .wishlist-icon.active {
+        .wishlist-btn.active {
           background: #fee2e2;
           color: var(--danger);
         }
 
-        .quick-view-btn {
+        .quick-view {
           position: absolute;
           bottom: 16px;
           left: 50%;
@@ -300,12 +278,11 @@ const ProductList = () => {
           color: var(--primary);
           cursor: pointer;
           opacity: 0;
-          transition: opacity 0.3s, transform 0.3s;
+          transition: all 0.3s;
         }
 
-        .product-card:hover .quick-view-btn {
+        .product-card:hover .quick-view {
           opacity: 1;
-          transform: translateX(-50%) translateY(-4px);
         }
 
         .product-info {
@@ -322,16 +299,15 @@ const ProductList = () => {
           font-size: 1.25rem;
           font-weight: 700;
           color: var(--success);
-          margin: 0.5rem 0;
         }
 
-        .add-cart-area {
+        .add-to-cart-row {
           display: flex;
           gap: 0.8rem;
           margin-top: 1rem;
         }
 
-        .qty-input {
+        .quantity-input {
           width: 60px;
           text-align: center;
           padding: 0.5rem;
@@ -348,14 +324,13 @@ const ProductList = () => {
           border-radius: 8px;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.2s;
         }
 
         .btn-add:hover { background: var(--primary-dark); }
         .btn-add:disabled { background: #9ca3af; cursor: not-allowed; }
 
-        /* Quick View Modal */
-        .modal-overlay {
+        /* Modal */
+        .modal-backdrop {
           position: fixed;
           inset: 0;
           background: rgba(0,0,0,0.6);
@@ -365,7 +340,7 @@ const ProductList = () => {
           z-index: 9999;
         }
 
-        .modal-content {
+        .modal-box {
           background: white;
           border-radius: 16px;
           max-width: 90%;
@@ -391,8 +366,8 @@ const ProductList = () => {
           color: #6b7280;
         }
 
-        /* Skeleton Loading */
-        .skeleton-card {
+        /* Skeleton */
+        .skeleton {
           background: var(--card);
           border-radius: var(--radius);
           overflow: hidden;
@@ -400,7 +375,7 @@ const ProductList = () => {
           height: 480px;
         }
 
-        .skeleton-image {
+        .skeleton-img {
           height: 260px;
           background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
           background-size: 200% 100%;
@@ -412,82 +387,54 @@ const ProductList = () => {
           100% { background-position: -200% 0; }
         }
 
-        /* Responsive */
         @media (max-width: 1024px) {
-          .shop-layout {
-            padding: 1rem;
-          }
-
-          .product-grid {
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          }
-
-          .filters-panel {
-            position: relative;
-            top: 0;
-          }
-
-          .btn-filter-toggle {
-            display: block;
-          }
-
-          .filters-panel {
-            display: ${showFilters ? 'block' : 'none'};
-          }
+          .shop-container { padding: 1rem; }
+          .filter-toggle { display: block; }
+          .filters { display: ${showFilters ? 'block' : 'none'}; position: relative; top: 0; }
         }
 
         @media (max-width: 640px) {
-          .product-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .add-cart-area {
-            flex-direction: column;
-          }
-
-          .qty-input {
-            width: 100%;
-          }
+          .product-grid { grid-template-columns: 1fr; }
+          .add-to-cart-row { flex-direction: column; }
+          .quantity-input { width: 100%; }
         }
       `}</style>
 
-      <div className="shop-layout">
-
+      <div className="shop-container">
         <button
-          className="btn-filter-toggle"
+          className="filter-toggle"
           onClick={() => setShowFilters(!showFilters)}
         >
           {showFilters ? 'Hide Filters' : 'Show Filters & Sort'}
         </button>
 
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '2rem' }}>
-          <aside className="filters-panel">
-            <div className="filter-group">
-              <div className="filter-title">Sort By</div>
+          <aside className="filters">
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Sort By</div>
               <select value={sortOption} onChange={e => setSortOption(e.target.value)}>
                 <option value="default">Featured</option>
-                <option value="price-low">Price: Low → High</option>
-                <option value="price-high">Price: High → Low</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
                 <option value="name-az">Name A–Z</option>
                 <option value="name-za">Name Z–A</option>
-                <option value="popularity">Popularity</option>
               </select>
             </div>
 
-            <div className="filter-group">
-              <div className="filter-title">Price Range</div>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Price Range</div>
               <input
                 type="number"
-                placeholder="Min price"
+                placeholder="Min"
                 value={priceRange.min || ''}
-                onChange={e => setPriceRange({ ...priceRange, min: Number(e.target.value) || 0 })}
+                onChange={e => setPriceRange(prev => ({ ...prev, min: Number(e.target.value) || 0 }))}
               />
               <div style={{ height: 8 }} />
               <input
                 type="number"
-                placeholder="Max price"
+                placeholder="Max"
                 value={priceRange.max === Infinity ? '' : priceRange.max}
-                onChange={e => setPriceRange({ ...priceRange, max: Number(e.target.value) || Infinity })}
+                onChange={e => setPriceRange(prev => ({ ...prev, max: Number(e.target.value) || Infinity }))}
               />
             </div>
           </aside>
@@ -496,8 +443,8 @@ const ProductList = () => {
             {loading ? (
               <div className="product-grid">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="skeleton-card">
-                    <div className="skeleton-image" />
+                  <div key={i} className="skeleton">
+                    <div className="skeleton-img" />
                     <div style={{ padding: '1.25rem' }}>
                       <div style={{ height: 20, width: '70%', background: '#e5e7eb', borderRadius: 4, marginBottom: 12 }} />
                       <div style={{ height: 16, width: '40%', background: '#e5e7eb', borderRadius: 4 }} />
@@ -508,47 +455,45 @@ const ProductList = () => {
             ) : error ? (
               <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--danger)' }}>{error}</div>
             ) : filteredProducts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '6rem 1rem', color: 'var(--text-light)' }}>
+              <div style={{ textAlign: 'center', padding: '6rem 1rem' }}>
                 <h2>No products found</h2>
-                <p>Try adjusting your filters or search term</p>
+                <p>Try different filters or search term</p>
               </div>
             ) : (
               <div className="product-grid">
                 {filteredProducts.map(product => {
                   const cartItem = getCartItem(product.id);
-                  const inWishlist = isWishlisted(product.id);
+                  const wishlisted = isWishlisted(product.id);
                   const outOfStock = product.stock <= 0;
 
                   return (
                     <div key={product.id} className="product-card">
                       <button
-                        className={`wishlist-icon ${inWishlist ? 'active' : ''}`}
+                        className={`wishlist-btn ${wishlisted ? 'active' : ''}`}
                         onClick={() => toggleWishlist(product)}
-                        aria-label="Toggle wishlist"
                       >
-                        {inWishlist ? '❤️' : '♡'}
+                        {wishlisted ? '❤️' : '♡'}
                       </button>
 
-                      <div className="product-image-wrapper">
+                      <div className="product-image-container">
                         <img
                           src={product.imageUrl || 'https://via.placeholder.com/400x300?text=No+Image'}
                           alt={product.name}
                           className="product-image"
-                          onError={e => e.target.src = 'https://via.placeholder.com/400x300?text=Error'}
                         />
                       </div>
 
                       <div className="product-info">
                         <h3 className="product-name">{product.name}</h3>
-                        <p className="product-price">${Number(product.price).toFixed(2)}</p>
+                        <div className="product-price">${Number(product.price).toFixed(2)}</div>
 
-                        <div className="add-cart-area">
+                        <div className="add-to-cart-row">
                           <input
                             type="number"
                             min="1"
                             max={product.stock}
                             defaultValue="1"
-                            className="qty-input"
+                            className="quantity-input"
                             disabled={outOfStock}
                           />
                           <button
@@ -564,7 +509,7 @@ const ProductList = () => {
                         </div>
 
                         <button
-                          className="quick-view-btn"
+                          className="quick-view"
                           onClick={() => openQuickView(product)}
                         >
                           Quick View
@@ -580,8 +525,8 @@ const ProductList = () => {
 
         {/* Quick View Modal */}
         {quickViewProduct && (
-          <div className="modal-overlay" onClick={closeQuickView}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-backdrop" onClick={closeQuickView}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>{quickViewProduct.name}</h2>
                 <button className="modal-close" onClick={closeQuickView}>×</button>
@@ -592,10 +537,10 @@ const ProductList = () => {
                   alt={quickViewProduct.name}
                   style={{ maxWidth: 400, borderRadius: 12, objectFit: 'cover' }}
                 />
-                <div style={{ flex: 1, minWidth: 300 }}>
-                  <p style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>
                     ${Number(quickViewProduct.price).toFixed(2)}
-                  </p>
+                  </div>
                   <p style={{ margin: '1rem 0', color: 'var(--text-light)' }}>
                     {quickViewProduct.description || 'No description available.'}
                   </p>
