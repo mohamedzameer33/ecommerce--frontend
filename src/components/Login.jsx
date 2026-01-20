@@ -208,7 +208,7 @@ const Login = () => {
       <div className="login-page">
         <div className="login-card">
           <div className="login-header">
-            <div className="login-logo">Shop</div>
+            <div className="login-logo">Zam Ecommerce</div>
             <h1 className="login-title">Welcome Back</h1>
             <p className="login-subtitle">Sign in to continue shopping</p>
           </div>
