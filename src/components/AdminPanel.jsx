@@ -126,7 +126,7 @@ const AdminPanel = () => {
         data: {
           labels: sortedDates,
           datasets: [{
-            label: 'Revenue ($)',
+            label: 'Revenue (₹)',
             data: salesData,
             borderColor: '#6366f1',
             backgroundColor: 'rgba(99, 102, 241, 0.18)',
