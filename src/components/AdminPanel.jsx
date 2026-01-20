@@ -6,49 +6,41 @@ const AdminPanel = () => {
   const [completedOrders, setCompletedOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [newProduct, setNewProduct] = useState({
-    name: '',
-    price: '',
-    description: '',
-    stock: '',
-    imageUrl: ''
+    name: '', price: '', description: '', stock: '', imageUrl: ''
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const [stats, setStats] = useState({
-    totalEarned: '0.00',
-    totalSold: 0,
-    uniqueBuyers: 0,
-    topProducts: []
+    totalEarned: '0.00', totalSold: 0, uniqueBuyers: 0, topProducts: []
   });
 
   const salesChartRef = useRef(null);
   const topProductsChartRef = useRef(null);
 
+  // Load PDF Libraries from CDN dynamically
   useEffect(() => {
+    const script1 = document.createElement('script');
+    script1.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    document.body.appendChild(script1);
+
+    const script2 = document.createElement('script');
+    script2.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js";
+    document.body.appendChild(script2);
+
     if (!localStorage.getItem('admin')) {
       window.location.href = '/admin';
       return;
     }
     fetchData();
-  }, []);
 
-  // Cleanup charts on unmount
-  useEffect(() => {
     return () => {
       if (salesChartRef.current) salesChartRef.current.destroy();
       if (topProductsChartRef.current) topProductsChartRef.current.destroy();
     };
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('admin');
-    window.location.href = '/admin';
-  };
-
   const fetchData = async () => {
     setLoading(true);
-    setError(null);
     try {
       const [ordersRes, productsRes] = await Promise.all([
         axios.get('https://ecommerce-backend-production-8455.up.railway.app/api/admin/orders/completed'),
@@ -62,8 +54,7 @@ const AdminPanel = () => {
       setProducts(prods);
       computeStats(orders, prods);
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Failed to load dashboard');
+      setError('Failed to sync with database.');
     } finally {
       setLoading(false);
     }
@@ -81,11 +72,8 @@ const AdminPanel = () => {
       totalEarned += qty * price;
       totalSold += qty;
       if (order.user?.id) buyers.add(order.user.id);
-
       const prodId = order.product?.id;
-      if (prodId) {
-        productSales[prodId] = (productSales[prodId] || 0) + qty;
-      }
+      if (prodId) productSales[prodId] = (productSales[prodId] || 0) + qty;
     });
 
     const topProducts = Object.entries(productSales)
@@ -103,13 +91,10 @@ const AdminPanel = () => {
       topProducts
     });
 
-    // FIX: Pass topProducts directly to renderCharts so it doesn't rely on 
-    // the 'stats' state which hasn't finished updating yet.
-    setTimeout(() => renderCharts(orders, topProducts), 150);
+    setTimeout(() => renderCharts(orders, topProducts), 300);
   };
 
   const renderCharts = (orders, topProductsData) => {
-    // ── Revenue Trend (Line Chart) ───────────────────────────────────────
     const salesByDate = {};
     orders.forEach(o => {
       const date = new Date(o.orderDate).toLocaleDateString('en-CA');
@@ -121,44 +106,27 @@ const AdminPanel = () => {
     const salesData = sortedDates.map(d => salesByDate[d]);
 
     const salesCtx = document.getElementById('salesChart');
-    if (salesCtx && salesData.length > 0) {
+    if (salesCtx) {
       if (salesChartRef.current) salesChartRef.current.destroy();
       salesChartRef.current = new Chart(salesCtx, {
         type: 'line',
         data: {
           labels: sortedDates,
           datasets: [{
-            label: 'Revenue (₹)',
+            label: 'Daily Revenue',
             data: salesData,
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.18)',
-            tension: 0.38,
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79, 70, 229, 0.1)',
             fill: true,
-            pointBackgroundColor: '#ffffff',
-            pointBorderColor: '#6366f1',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 7
+            tension: 0.4
           }]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'top', labels: { font: { size: 13 } } }
-          },
-          scales: {
-            y: { beginAtZero: true, grid: { color: 'rgba(226,232,240,0.6)' } },
-            x: { grid: { display: false } }
-          }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
       });
     }
 
-    // ── Top Products (Doughnut Chart) ────────────────────────────────────
     const pieCtx = document.getElementById('topProductsChart');
-    // FIX: Use topProductsData parameter instead of stats.topProducts
-    if (pieCtx && topProductsData && topProductsData.length > 0) {
+    if (pieCtx && topProductsData.length > 0) {
       if (topProductsChartRef.current) topProductsChartRef.current.destroy();
       topProductsChartRef.current = new Chart(pieCtx, {
         type: 'doughnut',
@@ -166,395 +134,150 @@ const AdminPanel = () => {
           labels: topProductsData.map(p => p.name),
           datasets: [{
             data: topProductsData.map(p => p.sales),
-            backgroundColor: [
-              '#6366f1', '#10b981', '#f59e0b', '#f87171', '#a78bfa'
-            ],
-            borderColor: '#ffffff',
-            borderWidth: 3
+            backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
           }]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: '68%',
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: { padding: 20, font: { size: 13 } }
-            },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => `${ctx.label}: ${ctx.raw} sold`
-              }
-            }
-          }
-        }
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
       });
     }
   };
 
-  const handleAddProduct = async () => {
-    if (!newProduct.name.trim() || !newProduct.price || Number(newProduct.price) <= 0 ||
-        !newProduct.stock || Number(newProduct.stock) < 0) {
-      alert('Please fill required fields correctly');
+  const downloadPDF = () => {
+    if (!window.jspdf) {
+      alert("PDF library is still loading, please wait a second...");
       return;
     }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text("Sales Report", 14, 20);
+    
+    const tableData = completedOrders.map(o => [
+      o.id,
+      o.user?.username || 'Guest',
+      o.product?.name || 'Item',
+      o.quantity,
+      `₹${(o.quantity * (o.product?.price || 0)).toFixed(2)}`,
+      new Date(o.orderDate).toLocaleDateString()
+    ]);
 
-    try {
-      await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/products', {
-        ...newProduct,
-        price: parseFloat(newProduct.price),
-        stock: parseInt(newProduct.stock, 10)
-      });
-      alert('Product added successfully!');
-      setNewProduct({ name: '', price: '', description: '', stock: '', imageUrl: '' });
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add product');
-    }
+    doc.autoTable({
+      head: [['ID', 'User', 'Product', 'Qty', 'Total', 'Date']],
+      body: tableData,
+      startY: 30,
+      headStyles: { fillColor: [79, 70, 229] }
+    });
+    
+    doc.save("store_report.pdf");
   };
 
-  const handleDeleteProduct = async (id) => {
-    if (!window.confirm('Delete this product? This cannot be undone.')) return;
-    try {
-      await axios.delete(`https://ecommerce-backend-production-8455.up.railway.app/api/products/${id}`);
-      alert('Product deleted');
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete product');
-    }
-  };
-
-  if (loading) return <div className="loading">Loading dashboard...</div>;
-  if (error) return <div className="error">Error: {error}</div>;
+  if (loading) return <div className="loading-state">Loading Store Data...</div>;
 
   return (
-    <>
+    <div className="admin-app">
       <style>{`
-        :root {
-          --bg: #f8fafc;
-          --card: #ffffff;
-          --primary: #6366f1;
-          --primary-dark: #4f46e5;
-          --accent: #10b981;
-          --danger: #ef4444;
-          --text: #1e293b;
-          --text-light: #64748b;
-          --border: #e2e8f0;
-          --shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
-        }
+        :root { --p: #4f46e5; --bg: #f8fafc; --txt: #1e293b; --side: #0f172a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--txt); }
+        .admin-app { display: flex; min-height: 100vh; }
+        
+        .sidebar { width: 260px; background: var(--side); color: white; padding: 2rem 1rem; position: sticky; top: 0; height: 100vh; }
+        .sidebar h2 { font-size: 1.4rem; margin-bottom: 2rem; color: #818cf8; text-align: center; }
+        .nav-item { padding: 12px; border-radius: 8px; cursor: pointer; color: #94a3b8; transition: 0.3s; margin-bottom: 5px; }
+        .nav-item:hover, .nav-item.active { background: #1e293b; color: white; }
+        .logout { margin-top: auto; color: #f87171; }
 
-        * { box-sizing: border-box; margin:0; padding:0; }
+        .main { flex: 1; padding: 2rem; overflow-x: hidden; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
+        .btn-p { background: var(--p); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .s-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 4px solid var(--p); }
+        .s-val { font-size: 1.8rem; font-weight: 700; margin-top: 5px; }
 
-        body {
-          font-family: system-ui, -apple-system, sans-serif;
-          background: var(--bg);
-          color: var(--text);
-          min-height: 100vh;
-        }
+        .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+        .c-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); height: 400px; }
 
-        .admin-layout { display: flex; min-height: 100vh; }
+        .data-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        input { padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; }
 
-        .sidebar {
-          width: 260px;
-          background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-          color: white;
-          padding: 2rem 1.5rem;
-          flex-shrink: 0;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 12px; background: #f1f5f9; font-size: 0.8rem; color: #64748b; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        
+        .loading-state { height: 100vh; display: flex; justify-content: center; align-items: center; font-weight: bold; }
 
-        .sidebar h2 { font-size: 1.75rem; margin-bottom: 0.6rem; }
-        .sidebar p { opacity: 0.9; font-size: 0.95rem; }
-
-        .logout-btn {
-          margin-top: 2.5rem;
-          background: rgba(255,255,255,0.2);
-          border: none;
-          color: white;
-          padding: 0.9rem;
-          border-radius: 10px;
-          cursor: pointer;
-          width: 100%;
-          font-weight: 500;
-          transition: 0.2s;
-        }
-
-        .logout-btn:hover { background: rgba(255,255,255,0.35); }
-
-        .main-content { flex: 1; padding: 2rem 2.5rem; }
-
-        .welcome { margin-bottom: 2.5rem; }
-        .welcome h1 {
-          font-size: 2.2rem;
-          background: linear-gradient(to right, #4f46e5, #7c3aed);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          margin-bottom: 0.4rem;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 2.5rem;
-        }
-
-        .stat-card {
-          background: var(--card);
-          border-radius: 16px;
-          padding: 1.6rem;
-          box-shadow: var(--shadow);
-          transition: transform 0.25s, box-shadow 0.25s;
-        }
-
-        .stat-card:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 20px 30px -10px rgba(99,102,241,0.18);
-        }
-
-        .stat-value {
-          font-size: 2.2rem;
-          font-weight: 700;
-          color: var(--primary);
-          margin: 0.5rem 0;
-        }
-
-        .stat-label {
-          color: var(--text-light);
-          font-size: 0.95rem;
-          font-weight: 500;
-        }
-
-        .charts-row {
-          display: grid;
-          grid-template-columns: 2fr 1fr;
-          gap: 1.8rem;
-          margin-bottom: 2.5rem;
-        }
-
-        .chart-card {
-          background: var(--card);
-          border-radius: 16px;
-          padding: 1.6rem;
-          box-shadow: var(--shadow);
-          height: 420px;
-        }
-
-        .chart-card h3 { margin-bottom: 1.2rem; font-size: 1.3rem; }
-        .card-content { height: calc(100% - 60px); }
-
-        canvas { width: 100% !important; height: 100% !important; }
-
-        .admin-card {
-          background: var(--card);
-          border-radius: 16px;
-          padding: 1.8rem;
-          box-shadow: var(--shadow);
-          margin-bottom: 2rem;
-        }
-
-        input {
-          width: 100%;
-          padding: 0.9rem;
-          margin: 0.7rem 0;
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          font-size: 1rem;
-        }
-
-        input:focus {
-          outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
-        }
-
-        .admin-btn {
-          background: var(--primary);
-          color: white;
-          border: none;
-          padding: 0.9rem 1.5rem;
-          border-radius: 10px;
-          cursor: pointer;
-          font-weight: 500;
-          transition: 0.2s;
-        }
-
-        .admin-btn:hover { background: var(--primary-dark); }
-
-        .delete-btn {
-          background: var(--danger);
-          color: white;
-          border: none;
-          padding: 0.6rem 1.2rem;
-          border-radius: 8px;
-          cursor: pointer;
-        }
-
-        .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-        th { background: #f1f5f9; font-weight: 600; color: var(--text-light); text-transform: uppercase; font-size: 0.85rem; }
-        tr:hover { background: #f8fafc; }
-
-        .image-preview { max-width: 160px; border-radius: 10px; margin: 0.8rem 0; border: 1px solid var(--border); }
-
-        .loading, .error { padding: 8rem 2rem; text-align: center; font-size: 1.4rem; color: var(--text-light); }
-        .error { color: var(--danger); }
-
-        @media (max-width: 1100px) {
-          .charts-row { grid-template-columns: 1fr; }
-          .chart-card { height: 400px; }
-        }
-
-        @media (max-width: 768px) {
-          .admin-layout { flex-direction: column; }
-          .sidebar { width: 100%; text-align: center; padding: 1.8rem 1rem; }
-          .main-content { padding: 1.5rem; }
-          .stats-grid { grid-template-columns: 1fr 1fr; }
-        }
+        @media (max-width: 1024px) { .charts { grid-template-columns: 1fr; } .admin-app { flex-direction: column; } .sidebar { width: 100%; height: auto; } }
       `}</style>
 
-      <div className="admin-layout">
-        <div className="sidebar">
-          <h2>Admin Dashboard</h2>
-          <p>Control Center</p>
-          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+      <aside className="sidebar">
+        <h2>Admin Panel</h2>
+        <div className="nav-item active">Dashboard</div>
+        <div className="nav-item">Inventory</div>
+        <div className="nav-item" onClick={() => { localStorage.removeItem('admin'); window.location.href='/admin' }}>Logout</div>
+      </aside>
+
+      <main className="main">
+        <header className="header">
+          <div>
+            <h1>Dashboard Overview</h1>
+            <p style={{ color: '#64748b' }}>Real-time store performance</p>
+          </div>
+          <button className="btn-p" onClick={downloadPDF}>Download Sales PDF</button>
+        </header>
+
+        <div className="stats">
+          <div className="s-card"><p>Total Revenue</p><div className="s-val">₹{stats.totalEarned}</div></div>
+          <div className="s-card"><p>Orders</p><div className="s-val">{stats.totalSold}</div></div>
+          <div className="s-card"><p>Customers</p><div className="s-val">{stats.uniqueBuyers}</div></div>
+          <div className="s-card"><p>Products</p><div className="s-val">{products.length}</div></div>
         </div>
 
-        <div className="main-content">
-          <div className="welcome">
-            <h1>Welcome back, Boss! 🛍️</h1>
-            <p style={{ color: 'var(--text-light)', fontSize: '1.05rem' }}>
-              Here's your store overview — updated in real time
-            </p>
-          </div>
+        <div className="charts">
+          <div className="c-card"><h3>Revenue Trend</h3><div style={{ height: '320px' }}><canvas id="salesChart"></canvas></div></div>
+          <div className="c-card"><h3>Top Products</h3><div style={{ height: '320px' }}><canvas id="topProductsChart"></canvas></div></div>
+        </div>
 
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-label">Total Revenue</div>
-              <div className="stat-value">₹{stats.totalEarned}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Items Sold</div>
-              <div className="stat-value">{stats.totalSold}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Unique Buyers</div>
-              <div className="stat-value">{stats.uniqueBuyers}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Products Listed</div>
-              <div className="stat-value">{products.length}</div>
-            </div>
+        <div className="data-card">
+          <h3>Quick Add Product</h3>
+          <div className="form-grid">
+            <input placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+            <input placeholder="Price" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+            <input placeholder="Stock" value={newProduct.stock} onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
+            <input placeholder="Image URL" value={newProduct.imageUrl} onChange={e => setNewProduct({...newProduct, imageUrl: e.target.value})} />
           </div>
+          <button className="btn-p" onClick={async () => {
+            await axios.post('https://ecommerce-backend-production-8455.up.railway.app/api/products', newProduct);
+            fetchData();
+            setNewProduct({ name: '', price: '', description: '', stock: '', imageUrl: '' });
+          }}>Save Product</button>
+        </div>
 
-          <div className="charts-row">
-            <div className="chart-card">
-              <h3>Revenue Trend</h3>
-              <div className="card-content">
-                <canvas id="salesChart"></canvas>
-              </div>
-            </div>
-            <div className="chart-card">
-              <h3>Top Selling Products</h3>
-              <div className="card-content">
-                <canvas id="topProductsChart"></canvas>
-              </div>
-            </div>
-          </div>
-
-          {/* Add Product Section */}
-          <div className="admin-card">
-            <h3>Add New Product</h3>
-            <input
-              placeholder="Product Name *"
-              value={newProduct.name}
-              onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
-            />
-            <input
-              type="number"
-              placeholder="Price *"
-              value={newProduct.price}
-              onChange={e => setNewProduct({ ...newProduct, price: e.target.value })}
-            />
-            <input
-              placeholder="Description"
-              value={newProduct.description}
-              onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
-            />
-            <input
-              type="number"
-              placeholder="Stock Quantity *"
-              value={newProduct.stock}
-              onChange={e => setNewProduct({ ...newProduct, stock: e.target.value })}
-            />
-            <input
-              placeholder="Image URL (optional)"
-              value={newProduct.imageUrl}
-              onChange={e => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
-            />
-            {newProduct.imageUrl && (
-              <img src={newProduct.imageUrl} alt="preview" className="image-preview" />
-            )}
-            <button onClick={handleAddProduct} className="admin-btn" style={{ marginTop: '1rem' }}>
-              Add Product
-            </button>
-          </div>
-
-          {/* Manage Products Table */}
-          <div className="admin-card">
-            <h3>Manage Products</h3>
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Action</th>
+        <div className="data-card">
+          <h3>Recent Orders</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr><th>ID</th><th>User</th><th>Product</th><th>Qty</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {completedOrders.slice(0, 8).map(o => (
+                  <tr key={o.id}>
+                    <td>#{o.id}</td>
+                    <td>{o.user?.username || 'Guest'}</td>
+                    <td>{o.product?.name || 'Item'}</td>
+                    <td>{o.quantity}</td>
+                    <td>{new Date(o.orderDate).toLocaleDateString()}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {products.map(p => (
-                    <tr key={p.id}>
-                      <td>{p.id}</td>
-                      <td>{p.name}</td>
-                      <td>₹{Number(p.price).toFixed(2)}</td>
-                      <td>{p.stock}</td>
-                      <td>
-                        <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Orders Table */}
-          <div className="admin-card">
-            <h3>Completed Orders</h3>
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th><th>User</th><th>Product</th><th>Qty</th><th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {completedOrders.map(o => (
-                    <tr key={o.id}>
-                      <td>{o.id}</td>
-                      <td>{o.user?.username || '—'}</td>
-                      <td>{o.product?.name || '—'}</td>
-                      <td>{o.quantity}</td>
-                      <td>{new Date(o.orderDate).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
-    </>
+      </main>
+    </div>
   );
 };
 
