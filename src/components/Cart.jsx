@@ -354,7 +354,7 @@ const Cart = () => {
                 </div>
 
                 <div className="price">
-                  ${(item.price * (item.quantity || 1)).toFixed(2)}
+                  ₹{(item.price * (item.quantity || 1)).toFixed(2)}
                 </div>
 
                 <div className="qty-box">
@@ -378,24 +378,24 @@ const Cart = () => {
 
             <div className="summary-row">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>₹{subtotal.toFixed(2)}</span>
             </div>
 
             <div className="summary-row">
               <span>Shipping</span>
-              <span>${shipping.toFixed(2)}</span>
+              <span>₹{shipping.toFixed(2)}</span>
             </div>
 
             {discount > 0 && (
               <div className="summary-row" style={{ color: "#16a34a" }}>
                 <span>Discount</span>
-                <span>-${discount.toFixed(2)}</span>
+                <span>-₹{discount.toFixed(2)}</span>
               </div>
             )}
 
             <div className="summary-row" style={{ fontWeight: 800 }}>
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>₹{total.toFixed(2)}</span>
             </div>
 
             <div className="promo-box">
