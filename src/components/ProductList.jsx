@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import axios from 'axios';
 import { UserContext } from '../context/UserContext.jsx';
-import { SearchContext } from '../App.jsx'; // Assuming App is where SearchContext is created; adjust path if needed
+import { SearchContext } from '../App.jsx';
 import { useNavigate } from 'react-router-dom';
+import debounce from 'lodash.debounce'; // add lodash or implement yourself
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -10,22 +11,23 @@ const ProductList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sortOption, setSortOption] = useState('default');
-  const [priceRange, setPriceRange] = useState([0, Infinity]);
+  const [priceRange, setPriceRange] = useState({ min: 0, max: Infinity });
   const [showFilters, setShowFilters] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState(null);
+
   const { user } = useContext(UserContext);
-  const { searchQuery } = useContext(SearchContext); // Use shared searchQuery from context
+  const { searchQuery } = useContext(SearchContext);
   const navigate = useNavigate();
 
+  // ─── Fetch + Polling ───────────────────────────────────────────────
   useEffect(() => {
     const fetchProducts = async () => {
-      setLoading(true);
-      setError(null);
       try {
+        setLoading(true);
         const res = await axios.get('https://ecommerce-backend-production-8455.up.railway.app/api/products');
-        setProducts(res.data);
-        setFilteredProducts(res.data);
+        setProducts(res.data || []);
       } catch (err) {
-        setError('Failed to load products. Please try again later.');
+        setError('Failed to load products');
         console.error(err);
       } finally {
         setLoading(false);
@@ -34,590 +36,596 @@ const ProductList = () => {
 
     fetchProducts();
 
-    if (!user) {
-      localStorage.removeItem('cart');
-    }
+    // Poll every 8 seconds (adjust as needed — 1s is too aggressive)
+    const interval = setInterval(fetchProducts, 8000);
+
+    if (!user) localStorage.removeItem('cart');
+
+    return () => clearInterval(interval);
   }, [user]);
 
-  useEffect(() => {
+  // ─── Debounced Search + Filter/Sort Logic ──────────────────────────
+  const applyFilters = useMemo(() => {
     let result = [...products];
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(query) || 
-        (p.description && p.description.toLowerCase().includes(query))
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q) ||
+        p.category?.toLowerCase().includes(q)
       );
     }
 
-    result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    // Price range
+    result = result.filter(p => {
+      const price = Number(p.price);
+      return price >= (priceRange.min || 0) && price <= (priceRange.max || Infinity);
+    });
 
+    // Sorting
     switch (sortOption) {
-      case 'price-low':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'name-az':
-        result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'name-za':
-        result.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      default:
-        break;
+      case 'price-low':  result.sort((a, b) => a.price - b.price); break;
+      case 'price-high': result.sort((a, b) => b.price - a.price); break;
+      case 'name-az':    result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case 'name-za':    result.sort((a, b) => b.name.localeCompare(a.name)); break;
+      case 'popularity': result.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+      default: break;
     }
 
-    setFilteredProducts(result);
-  }, [searchQuery, sortOption, priceRange, products]);
+    return result;
+  }, [products, searchQuery, sortOption, priceRange]);
 
-  const addToCart = (product) => {
+  useEffect(() => {
+    setFilteredProducts(applyFilters);
+  }, [applyFilters]);
+
+  // ─── Cart & Wishlist Helpers ──────────────────────────────────────
+  const getCartItem = (id) => {
+    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    return cart.find(item => item.id === id);
+  };
+
+  const updateCart = (newCart) => {
+    localStorage.setItem('cart', JSON.stringify(newCart));
+  };
+
+  const addToCart = (product, qty = 1) => {
     if (!user) {
-      alert('Please login to add to cart');
+      alert('Please login first');
       navigate('/login');
       return;
     }
-    if (product.stock <= 0) {
-      alert('Out of stock!');
+    if (product.stock < qty) {
+      alert(`Only ${product.stock} left in stock!`);
       return;
     }
 
-    let cart = JSON.parse(localStorage.getItem('cart')) || [];
-    const existingItem = cart.find(item => item.id === product.id);
+    let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const existing = cart.find(i => i.id === product.id);
 
-    if (existingItem) {
-      if (existingItem.quantity + 1 > product.stock) {
-        alert(`Only ${product.stock} in stock!`);
+    if (existing) {
+      if (existing.quantity + qty > product.stock) {
+        alert(`Cannot add more — only ${product.stock - existing.quantity} left`);
         return;
       }
-      existingItem.quantity += 1;
+      existing.quantity += qty;
     } else {
-      cart.push({ ...product, quantity: 1 });
+      cart.push({ ...product, quantity: qty });
     }
 
-    localStorage.setItem('cart', JSON.stringify(cart));
-    alert('Added to cart!');
-  };
-
-  const getCartQuantity = (productId) => {
-    const cart = JSON.parse(localStorage.getItem('cart')) || [];
-    const item = cart.find(item => item.id === productId);
-    return item ? item.quantity : 0;
-  };
-
-  const getTotalCartItems = () => {
-    const cart = JSON.parse(localStorage.getItem('cart')) || [];
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
+    updateCart(cart);
+    alert(`Added ${qty} × ${product.name} to cart!`);
   };
 
   const toggleWishlist = (product) => {
     if (!user) {
-      alert('Please login to add to wishlist');
+      alert('Login required');
       navigate('/login');
       return;
     }
 
-    let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
-    const index = wishlist.findIndex(item => item.id === product.id);
+    let wl = JSON.parse(localStorage.getItem('wishlist') || '[]');
+    const idx = wl.findIndex(i => i.id === product.id);
 
-    if (index !== -1) {
-      wishlist.splice(index, 1);
+    if (idx !== -1) {
+      wl.splice(idx, 1);
       alert('Removed from wishlist');
     } else {
-      wishlist.push(product);
-      alert('Added to wishlist');
+      wl.push(product);
+      alert('Added to wishlist ♥');
     }
 
-    localStorage.setItem('wishlist', JSON.stringify(wishlist));
+    localStorage.setItem('wishlist', JSON.stringify(wl));
   };
 
-  const isInWishlist = (productId) => {
-    const wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
-    return wishlist.some(item => item.id === productId);
+  const isWishlisted = (id) => {
+    const wl = JSON.parse(localStorage.getItem('wishlist') || '[]');
+    return wl.some(i => i.id === id);
   };
 
+  // ─── Quick View Modal ──────────────────────────────────────────────
+  const openQuickView = (product) => setQuickViewProduct(product);
+  const closeQuickView = () => setQuickViewProduct(null);
+
+  // ─── Render ────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        :root {
+          --primary: #6366f1;
+          --primary-dark: #4f46e5;
+          --success: #10b981;
+          --danger: #ef4444;
+          --text: #1e293b;
+          --text-light: #64748b;
+          --bg: #f8fafc;
+          --card: #ffffff;
+          --border: #e2e8f0;
+          --shadow: 0 10px 25px -5px rgba(0,0,0,0.08);
+          --radius: 12px;
         }
 
-        .ecommerce-container {
-          background: #f9fafb;
-          min-height: 100vh;
+        * { box-sizing: border-box; margin:0; padding:0; }
+
+        body {
+          font-family: system-ui, sans-serif;
+          background: var(--bg);
+          color: var(--text);
         }
 
-        .ecommerce-header {
-          background: white;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-          position: sticky;
-          top: 0;
-          z-index: 100;
-          padding: 1rem;
-        }
-
-        .header-content {
-          max-width: 1400px;
+        .shop-layout {
+          max-width: 1440px;
           margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 1rem;
-        }
-
-        .search-bar {
-          flex: 1;
-          max-width: 600px;
-          position: relative;
-        }
-
-        .search-input {
-          width: 100%;
-          padding: 0.8rem 1rem 0.8rem 3rem;
-          border: 1px solid #d1d5db;
-          border-radius: 999px;
-          font-size: 1rem;
-          transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .search-input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
-          outline: none;
-        }
-
-        .search-icon {
-          position: absolute;
-          left: 1.2rem;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #6b7280;
-          font-size: 1.3rem;
-          pointer-events: none;
-        }
-
-        .cart-icon {
-          position: relative;
-          cursor: pointer;
-          color: #1f2937;
-          font-size: 1.6rem;
-          display: flex;
-          align-items: center;
-        }
-
-        .cart-count {
-          position: absolute;
-          top: -0.4rem;
-          right: -0.6rem;
-          background: #ef4444;
-          color: white;
-          font-size: 0.75rem;
-          font-weight: 600;
-          padding: 0.15rem 0.45rem;
-          border-radius: 999px;
-          min-width: 1.2rem;
-          text-align: center;
-        }
-
-        .filters-sidebar {
-          background: white;
           padding: 1.5rem;
-          border-radius: 12px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .filters-panel {
+          background: var(--card);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          padding: 1.5rem;
+          height: fit-content;
           position: sticky;
           top: 80px;
-          height: fit-content;
+        }
+
+        .filter-group {
+          margin-bottom: 1.5rem;
         }
 
         .filter-title {
           font-size: 1.1rem;
           font-weight: 600;
-          margin-bottom: 1rem;
-          color: #374151;
+          margin-bottom: 0.75rem;
+          color: var(--text);
         }
 
-        .sort-select {
+        select, input[type="number"] {
           width: 100%;
-          padding: 0.7rem 1rem;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          background: white;
+          padding: 0.7rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
           font-size: 0.95rem;
-          margin-bottom: 1.5rem;
-          cursor: pointer;
         }
 
-        .price-range {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-          margin-bottom: 1.25rem;
-        }
-
-        .price-input {
-          width: 100%;
-          padding: 0.7rem 1rem;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 0.95rem;
-          transition: border-color 0.2s;
-        }
-
-        .price-input:focus {
-          border-color: #3b82f6;
+        select:focus, input:focus {
           outline: none;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
         }
 
-        .apply-filters {
-          width: 100%;
-          padding: 0.8rem;
-          background: #3b82f6;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .apply-filters:hover {
-          background: #2563eb;
-        }
-
-        .filter-toggle-btn {
+        .btn-filter-toggle {
           display: none;
           width: 100%;
-          padding: 0.8rem;
-          background: #f3f4f6;
+          padding: 0.9rem;
+          background: var(--primary);
+          color: white;
           border: none;
-          border-radius: 8px;
-          font-size: 1rem;
-          font-weight: 500;
-          cursor: pointer;
+          border-radius: 10px;
+          font-weight: 600;
           margin-bottom: 1.5rem;
-          text-align: center;
-        }
-
-        .shop-main {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 2rem 1rem;
-          display: grid;
-          grid-template-columns: 240px 1fr;
-          gap: 2.5rem;
+          cursor: pointer;
         }
 
         .product-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 2rem;
+          gap: 1.8rem;
         }
 
         .product-card {
-          background: white;
-          border-radius: 12px;
+          background: var(--card);
+          border-radius: var(--radius);
           overflow: hidden;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-          transition: all 0.3s ease;
+          box-shadow: var(--shadow);
+          transition: transform 0.25s ease, box-shadow 0.25s ease;
           position: relative;
         }
 
         .product-card:hover {
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-          transform: translateY(-4px);
+          transform: translateY(-8px);
+          box-shadow: 0 20px 35px -10px rgba(99,102,241,0.18);
         }
 
-        .wishlist-btn {
-          position: absolute;
-          top: 1rem;
-          right: 1rem;
-          background: rgba(255,255,255,0.9);
-          border: none;
-          border-radius: 50%;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: color 0.2s, background 0.2s;
-          color: #9ca3af;
-        }
-
-        .wishlist-btn.active {
-          color: #ef4444;
-          background: rgba(239,68,68,0.1);
-        }
-
-        .wishlist-btn:hover {
-          color: #ef4444;
-          background: rgba(239,68,68,0.1);
+        .product-image-wrapper {
+          position: relative;
+          height: 260px;
+          overflow: hidden;
         }
 
         .product-image {
           width: 100%;
-          height: 240px;
+          height: 100%;
           object-fit: cover;
-          display: block;
+          transition: transform 0.4s ease;
         }
 
-        .product-details {
-          padding: 1.5rem;
+        .product-card:hover .product-image {
+          transform: scale(1.08);
+        }
+
+        .wishlist-icon {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(255,255,255,0.9);
+          border-radius: 50%;
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          z-index: 10;
+        }
+
+        .wishlist-icon.active {
+          background: #fee2e2;
+          color: var(--danger);
+        }
+
+        .quick-view-btn {
+          position: absolute;
+          bottom: 16px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(255,255,255,0.95);
+          border: none;
+          padding: 0.6rem 1.2rem;
+          border-radius: 999px;
+          font-weight: 600;
+          color: var(--primary);
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .product-card:hover .quick-view-btn {
+          opacity: 1;
+          transform: translateX(-50%) translateY(-4px);
+        }
+
+        .product-info {
+          padding: 1.25rem;
         }
 
         .product-name {
-          font-size: 1.2rem;
+          font-size: 1.15rem;
           font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 0.5rem;
-        }
-
-        .product-description {
-          font-size: 0.9rem;
-          color: #6b7280;
-          margin-bottom: 1rem;
-          line-height: 1.4;
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+          margin-bottom: 0.4rem;
         }
 
         .product-price {
           font-size: 1.25rem;
           font-weight: 700;
-          color: #16a34a;
-          margin-bottom: 0.75rem;
+          color: var(--success);
+          margin: 0.5rem 0;
         }
 
-        .product-rating {
-          font-size: 0.85rem;
-          color: #eab308;
-          margin-bottom: 1rem;
+        .add-cart-area {
+          display: flex;
+          gap: 0.8rem;
+          margin-top: 1rem;
         }
 
-        .stock-info {
-          font-size: 0.85rem;
-          color: #16a34a;
-          margin-bottom: 1.25rem;
+        .qty-input {
+          width: 60px;
+          text-align: center;
+          padding: 0.5rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
         }
 
-        .stock-info.out-of-stock {
-          color: #ef4444;
-        }
-
-        .add-to-cart-btn {
-          width: 100%;
+        .btn-add {
+          flex: 1;
           padding: 0.8rem;
-          background: #3b82f6;
+          background: var(--primary);
           color: white;
           border: none;
-          border-radius: 6px;
+          border-radius: 8px;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.2s, transform 0.1s;
+          transition: background 0.2s;
         }
 
-        .add-to-cart-btn:hover {
-          background: #2563eb;
-          transform: translateY(-1px);
+        .btn-add:hover { background: var(--primary-dark); }
+        .btn-add:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        /* Quick View Modal */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
         }
 
-        .add-to-cart-btn:disabled {
-          background: #9ca3af;
-          cursor: not-allowed;
-          transform: none;
+        .modal-content {
+          background: white;
+          border-radius: 16px;
+          max-width: 90%;
+          width: 900px;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
         }
 
-        /* Enhanced responsiveness */
+        .modal-header {
+          padding: 1.5rem;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .modal-close {
+          background: none;
+          border: none;
+          font-size: 1.8rem;
+          cursor: pointer;
+          color: #6b7280;
+        }
+
+        /* Skeleton Loading */
+        .skeleton-card {
+          background: var(--card);
+          border-radius: var(--radius);
+          overflow: hidden;
+          box-shadow: var(--shadow);
+          height: 480px;
+        }
+
+        .skeleton-image {
+          height: 260px;
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        /* Responsive */
         @media (max-width: 1024px) {
-          .shop-main {
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-          }
-
-          .filters-sidebar {
-            display: ${showFilters ? 'block' : 'none'};
-            position: relative;
-            top: 0;
-            box-shadow: none;
-            border: 1px solid #e5e7eb;
-          }
-
-          .filter-toggle-btn {
-            display: block;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .header-content {
-            flex-direction: row;
-            justify-content: space-between;
-          }
-
-          .search-bar {
-            max-width: none;
-            flex: 1;
+          .shop-layout {
+            padding: 1rem;
           }
 
           .product-grid {
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 1.5rem;
           }
 
-          .product-image {
-            height: 220px;
+          .filters-panel {
+            position: relative;
+            top: 0;
+          }
+
+          .btn-filter-toggle {
+            display: block;
+          }
+
+          .filters-panel {
+            display: ${showFilters ? 'block' : 'none'};
           }
         }
 
-        @media (max-width: 480px) {
-          .header-content {
-            gap: 0.5rem;
-          }
-
-          .search-input {
-            padding-left: 2.5rem;
-            font-size: 0.95rem;
-          }
-
-          .search-icon {
-            left: 0.8rem;
-            font-size: 1.1rem;
-          }
-
-          .cart-icon {
-            font-size: 1.4rem;
-          }
-
+        @media (max-width: 640px) {
           .product-grid {
             grid-template-columns: 1fr;
-            gap: 1.2rem;
           }
 
-          .product-image {
-            height: 200px;
+          .add-cart-area {
+            flex-direction: column;
           }
 
-          .product-details {
-            padding: 1.2rem;
-          }
-
-          .price-range {
-            gap: 0.5rem;
+          .qty-input {
+            width: 100%;
           }
         }
       `}</style>
 
-      <div className="ecommerce-container">
-        
-        <main className="shop-main">
-          <aside className="filters-sidebar">
-            <h3 className="filter-title">Sort & Filter</h3>
-            <select
-              className="sort-select"
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-            >
-              <option value="default">Sort by</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="name-az">Name: A-Z</option>
-              <option value="name-za">Name: Z-A</option>
-            </select>
-            <div className="filter-title">Price Range</div>
-            <div className="price-range">
+      <div className="shop-layout">
+
+        <button
+          className="btn-filter-toggle"
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          {showFilters ? 'Hide Filters' : 'Show Filters & Sort'}
+        </button>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '2rem' }}>
+          <aside className="filters-panel">
+            <div className="filter-group">
+              <div className="filter-title">Sort By</div>
+              <select value={sortOption} onChange={e => setSortOption(e.target.value)}>
+                <option value="default">Featured</option>
+                <option value="price-low">Price: Low → High</option>
+                <option value="price-high">Price: High → Low</option>
+                <option value="name-az">Name A–Z</option>
+                <option value="name-za">Name Z–A</option>
+                <option value="popularity">Popularity</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <div className="filter-title">Price Range</div>
               <input
                 type="number"
                 placeholder="Min price"
-                className="price-input"
-                value={priceRange[0] || ''}
-                onChange={(e) => setPriceRange([Number(e.target.value) || 0, priceRange[1]])}
+                value={priceRange.min || ''}
+                onChange={e => setPriceRange({ ...priceRange, min: Number(e.target.value) || 0 })}
               />
+              <div style={{ height: 8 }} />
               <input
                 type="number"
                 placeholder="Max price"
-                className="price-input"
-                value={priceRange[1] === Infinity ? '' : priceRange[1]}
-                onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value) || Infinity])}
+                value={priceRange.max === Infinity ? '' : priceRange.max}
+                onChange={e => setPriceRange({ ...priceRange, max: Number(e.target.value) || Infinity })}
               />
             </div>
-            <button className="apply-filters" onClick={() => setShowFilters(false)}>
-              Apply
-            </button>
           </aside>
 
           <section>
-            <button 
-              className="filter-toggle-btn"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              {showFilters ? 'Hide Filters' : 'Filters & Sort'} ⚙️
-            </button>
-
-            {error && <div className="error-message">{error}</div>}
-
             {loading ? (
-              <div className="loading-spinner">Loading products...</div>
+              <div className="product-grid">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-image" />
+                    <div style={{ padding: '1.25rem' }}>
+                      <div style={{ height: 20, width: '70%', background: '#e5e7eb', borderRadius: 4, marginBottom: 12 }} />
+                      <div style={{ height: 16, width: '40%', background: '#e5e7eb', borderRadius: 4 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--danger)' }}>{error}</div>
+            ) : filteredProducts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '6rem 1rem', color: 'var(--text-light)' }}>
+                <h2>No products found</h2>
+                <p>Try adjusting your filters or search term</p>
+              </div>
             ) : (
               <div className="product-grid">
-                {filteredProducts.length === 0 ? (
-                  <p style={{ textAlign: 'center', fontSize: '1.2rem', color: '#666' }}>No products found.</p>
-                ) : (
-                  filteredProducts.map(product => {
-                    const cartQty = getCartQuantity(product.id);
-                    const isOutOfStock = product.stock <= 0;
-                    const inWishlist = isInWishlist(product.id);
+                {filteredProducts.map(product => {
+                  const cartItem = getCartItem(product.id);
+                  const inWishlist = isWishlisted(product.id);
+                  const outOfStock = product.stock <= 0;
 
-                    return (
-                      <div key={product.id} className="product-card">
-                        <button 
-                          className={`wishlist-btn ${inWishlist ? 'active' : ''}`}
-                          onClick={() => toggleWishlist(product)}
-                        >
-                          {inWishlist ? '❤️' : '♡'}
-                        </button>
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="product-image"
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
+                  return (
+                    <div key={product.id} className="product-card">
+                      <button
+                        className={`wishlist-icon ${inWishlist ? 'active' : ''}`}
+                        onClick={() => toggleWishlist(product)}
+                        aria-label="Toggle wishlist"
+                      >
+                        {inWishlist ? '❤️' : '♡'}
+                      </button>
+
+                      <div className="product-image-wrapper">
+                        <img
+                          src={product.imageUrl || 'https://via.placeholder.com/400x300?text=No+Image'}
+                          alt={product.name}
+                          className="product-image"
+                          onError={e => e.target.src = 'https://via.placeholder.com/400x300?text=Error'}
+                        />
+                      </div>
+
+                      <div className="product-info">
+                        <h3 className="product-name">{product.name}</h3>
+                        <p className="product-price">${Number(product.price).toFixed(2)}</p>
+
+                        <div className="add-cart-area">
+                          <input
+                            type="number"
+                            min="1"
+                            max={product.stock}
+                            defaultValue="1"
+                            className="qty-input"
+                            disabled={outOfStock}
                           />
-                        ) : (
-                          <div className="no-image">No Image</div>
-                        )}
-                        <div className="product-details">
-                          <h3 className="product-name">{product.name}</h3>
-                          <p className="product-description">{product.description || 'No description available.'}</p>
-                          <p className="product-price">${product.price.toFixed(2)}</p>
-                          <p className="product-rating">★★★★☆ (4.5 / 5)</p>
-                          <p className={`stock-info ${isOutOfStock ? 'out-of-stock' : ''}`}>
-                            {isOutOfStock ? 'Out of Stock' : `In Stock: ${product.stock}`}
-                          </p>
-                          {cartQty > 0 && (
-                            <p className="cart-quantity">In cart: {cartQty}</p>
-                          )}
                           <button
-                            onClick={() => addToCart(product)}
-                            disabled={isOutOfStock}
-                            className="add-to-cart-btn"
+                            className="btn-add"
+                            disabled={outOfStock}
+                            onClick={(e) => {
+                              const qty = Number(e.target.previousSibling.value) || 1;
+                              addToCart(product, qty);
+                            }}
                           >
-                            {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                            {outOfStock ? 'Out of Stock' : 'Add to Cart'}
                           </button>
                         </div>
+
+                        <button
+                          className="quick-view-btn"
+                          onClick={() => openQuickView(product)}
+                        >
+                          Quick View
+                        </button>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
-        </main>
+        </div>
+
+        {/* Quick View Modal */}
+        {quickViewProduct && (
+          <div className="modal-overlay" onClick={closeQuickView}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>{quickViewProduct.name}</h2>
+                <button className="modal-close" onClick={closeQuickView}>×</button>
+              </div>
+              <div style={{ padding: '1.5rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                <img
+                  src={quickViewProduct.imageUrl || 'https://via.placeholder.com/500x500'}
+                  alt={quickViewProduct.name}
+                  style={{ maxWidth: 400, borderRadius: 12, objectFit: 'cover' }}
+                />
+                <div style={{ flex: 1, minWidth: 300 }}>
+                  <p style={{ fontSize: '1.8rem', fontWeight: 700, color: 'var(--success)' }}>
+                    ${Number(quickViewProduct.price).toFixed(2)}
+                  </p>
+                  <p style={{ margin: '1rem 0', color: 'var(--text-light)' }}>
+                    {quickViewProduct.description || 'No description available.'}
+                  </p>
+                  <p>Stock: {quickViewProduct.stock > 0 ? quickViewProduct.stock : 'Out of stock'}</p>
+
+                  <button
+                    style={{
+                      marginTop: '1.5rem',
+                      width: '100%',
+                      padding: '1rem',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontSize: '1.1rem',
+                      fontWeight: 600
+                    }}
+                    onClick={() => {
+                      addToCart(quickViewProduct, 1);
+                      closeQuickView();
+                    }}
+                    disabled={quickViewProduct.stock <= 0}
+                  >
+                    Add to Cart
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
