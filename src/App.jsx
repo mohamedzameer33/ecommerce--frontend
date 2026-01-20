@@ -1,6 +1,14 @@
 import React, { useState, useContext } from 'react';
-import { Route, Routes, Navigate, Link, useNavigate } from 'react-router-dom';
+import {
+  Routes,
+  Route,
+  Navigate,
+  Link,
+  useNavigate,
+} from 'react-router-dom';
+
 import { UserContext } from './context/UserContext.jsx';
+
 import Login from './components/Login.jsx';
 import Register from './components/Register.jsx';
 import ProductList from './components/ProductList.jsx';
@@ -10,7 +18,7 @@ import DummyRazorpay from './components/DummyRazorpay.jsx';
 import AdminLogin from './components/AdminLogin.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 
-export const SearchContext = createContext(null);
+export const SearchContext = React.createContext(null);
 
 function App() {
   const { user, logout } = useContext(UserContext);
@@ -23,39 +31,34 @@ function App() {
 
   return (
     <SearchContext.Provider value={{ searchQuery, setSearchQuery }}>
-      <div className="app-wrapper">
+      <div className="app-layout">
 
         {/* ── HEADER ──────────────────────────────────────────────── */}
         <header className="site-header">
-          <div className="header-container">
-            <Link to="/" className="logo-link">
-              <h1 className="logo">E-Shop</h1>
+          <div className="header-inner">
+            <Link to="/" className="logo">
+              <h1>E-Commerce</h1>
             </Link>
 
-            <div className="search-wrapper">
+            <div className="search-container">
               <input
                 type="search"
-                placeholder="Search products, brands..."
+                placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
               />
-              <button type="button" className="search-btn" aria-label="Search">
-                🔍
-              </button>
+              <button className="search-btn">🔍</button>
             </div>
 
-            <nav className="main-nav">
+            <nav className="nav-bar">
               {user ? (
-                <div className="user-actions">
-                  <span className="welcome-msg">Hi, {user.username}</span>
-                  <Link to="/" className="nav-link">Home</Link>
-                  <Link to="/cart" className="nav-link cart-link">
-                    Cart
-                    {/* Optional: cart count badge later */}
-                  </Link>
+                <>
+                  <span className="welcome">Hi, {user.username}</span>
+                  <Link to="/">Home</Link>
+                  <Link to="/cart">Cart</Link>
                   <button
-                    className="logout-btn"
+                    className="logout-button"
                     onClick={() => {
                       logout();
                       navigate('/login', { replace: true });
@@ -63,12 +66,12 @@ function App() {
                   >
                     Logout
                   </button>
-                </div>
+                </>
               ) : (
-                <div className="auth-links">
-                  <Link to="/login" className="nav-link login-link">Login</Link>
-                  <Link to="/register" className="nav-link signup-link">Sign Up</Link>
-                </div>
+                <>
+                  <Link to="/login" className="auth-link">Login</Link>
+                  <Link to="/register" className="auth-link signup">Register</Link>
+                </>
               )}
             </nav>
           </div>
@@ -77,96 +80,75 @@ function App() {
         {/* ── MAIN CONTENT ────────────────────────────────────────── */}
         <main className="main-content">
           <Routes>
-            <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+            <Route path="/login"    element={user ? <Navigate to="/" replace /> : <Login />} />
             <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
-            <Route path="/admin" element={<AdminLogin />} />
+
+            <Route path="/admin"       element={<AdminLogin />} />
             <Route path="/admin/panel" element={<AdminPanel />} />
 
-            <Route path="/" element={<PrivateRoute><ProductList /></PrivateRoute>} />
-            <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
-            <Route path="/order-confirmation/:orderId" element={<PrivateRoute><Checkout /></PrivateRoute>} />
-            <Route path="/payment/:orderId" element={<PrivateRoute><DummyRazorpay /></PrivateRoute>} />
+            <Route path="/" element={
+              <PrivateRoute>
+                <ProductList />
+              </PrivateRoute>
+            } />
 
-            {/* Optional: 404 fallback */}
+            <Route path="/cart" element={
+              <PrivateRoute>
+                <Cart />
+              </PrivateRoute>
+            } />
+
+            <Route path="/order-confirmation/:orderId" element={
+              <PrivateRoute>
+                <Checkout />
+              </PrivateRoute>
+            } />
+
+            <Route path="/payment/:orderId" element={
+              <PrivateRoute>
+                <DummyRazorpay />
+              </PrivateRoute>
+            } />
+
+            {/* Catch-all redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
 
         {/* ── FOOTER ──────────────────────────────────────────────── */}
         <footer className="site-footer">
-          <div className="footer-container">
-            <div className="footer-brand">
-              <h2 className="footer-logo">E-Shop</h2>
-              <p>Modern shopping experience • 2026</p>
-            </div>
-
+          <div className="footer-content">
+            <p>© {new Date().getFullYear()} E-Commerce App. All rights reserved.</p>
             <div className="footer-links">
-              <div className="link-group">
-                <h3>Company</h3>
-                <a href="#">About Us</a>
-                <a href="#">Careers</a>
-                <a href="#">Contact</a>
-              </div>
-              <div className="link-group">
-                <h3>Support</h3>
-                <a href="#">Help Center</a>
-                <a href="#">Returns</a>
-                <a href="#">FAQ</a>
-              </div>
-              <div className="link-group">
-                <h3>Legal</h3>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-              </div>
+              <a href="#">Privacy Policy</a>
+              <a href="#">Terms of Service</a>
+              <a href="#">Contact</a>
             </div>
-          </div>
-
-          <div className="footer-bottom">
-            <p>© {new Date().getFullYear()} E-Shop. All rights reserved.</p>
           </div>
         </footer>
       </div>
 
-      {/* ── INTERNAL RESPONSIVE + BEAUTIFUL STYLES ──────────────────────── */}
+      {/* ── STYLES ──────────────────────────────────────────────────────── */}
       <style>{`
-        :root {
-          --primary: #6366f1;
-          --primary-dark: #4f46e5;
-          --text: #1e293b;
-          --text-light: #64748b;
-          --bg: #f8fafc;
-          --card: #ffffff;
-          --border: #e2e8f0;
-          --shadow-sm: 0 4px 10px rgba(0,0,0,0.06);
-          --radius: 12px;
-        }
-
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-
-        .app-wrapper {
+        .app-layout {
           min-height: 100vh;
           display: flex;
           flex-direction: column;
-          background: var(--bg);
+          background: #f8fafc;
           font-family: system-ui, -apple-system, sans-serif;
-          color: var(--text);
         }
 
-        /* ── HEADER ──────────────────────────────────────────────── */
+        /* Header */
         .site-header {
           background: white;
-          box-shadow: var(--shadow-sm);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.08);
           position: sticky;
           top: 0;
           z-index: 1000;
-          border-bottom: 1px solid var(--border);
+          border-bottom: 1px solid #e5e7eb;
         }
 
-        .header-container {
+        .header-inner {
           max-width: 1400px;
           margin: 0 auto;
           padding: 1rem 1.5rem;
@@ -177,102 +159,87 @@ function App() {
           flex-wrap: wrap;
         }
 
-        .logo-link {
-          text-decoration: none;
-          color: var(--primary-dark);
+        .logo h1 {
+          margin: 0;
+          font-size: 1.9rem;
+          color: #4f46e5;
           font-weight: 700;
         }
 
-        .logo {
-          font-size: 1.8rem;
-          letter-spacing: -0.5px;
-        }
-
-        .search-wrapper {
+        .search-container {
           flex: 1;
-          min-width: 220px;
-          max-width: 480px;
+          min-width: 240px;
+          max-width: 500px;
           position: relative;
         }
 
         .search-input {
           width: 100%;
           padding: 0.75rem 1rem 0.75rem 2.8rem;
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
           font-size: 1rem;
-          transition: all 0.2s;
         }
 
         .search-input:focus {
           outline: none;
-          border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
         }
 
         .search-btn {
           position: absolute;
-          left: 0.8rem;
+          left: 12px;
           top: 50%;
           transform: translateY(-50%);
           background: none;
           border: none;
           font-size: 1.1rem;
+          color: #6b7280;
           cursor: pointer;
-          color: var(--text-light);
         }
 
-        .main-nav {
+        .nav-bar {
           display: flex;
           align-items: center;
           gap: 1.4rem;
+          flex-wrap: wrap;
         }
 
-        .nav-link, .login-link, .signup-link {
-          color: var(--text);
+        .nav-bar a,
+        .auth-link {
+          color: #1e293b;
           text-decoration: none;
           font-weight: 500;
-          transition: color 0.2s;
         }
 
-        .nav-link:hover, .login-link:hover, .signup-link:hover {
-          color: var(--primary);
-        }
-
-        .login-link { font-weight: 600; }
-        .signup-link {
-          background: var(--primary);
+        .auth-link.signup {
+          background: #6366f1;
           color: white;
-          padding: 0.5rem 1.1rem;
-          border-radius: 8px;
+          padding: 0.5rem 1rem;
+          border-radius: 6px;
         }
 
-        .signup-link:hover {
-          background: var(--primary-dark);
-          color: white;
-        }
-
-        .welcome-msg {
-          color: var(--text-light);
+        .welcome {
+          color: #64748b;
           font-size: 0.95rem;
         }
 
-        .logout-btn {
+        .logout-button {
           background: #ef4444;
           color: white;
           border: none;
           padding: 0.5rem 1rem;
-          border-radius: 8px;
+          border-radius: 6px;
           cursor: pointer;
           font-weight: 500;
-          transition: background 0.2s;
         }
 
-        .logout-btn:hover {
+        .logout-button:hover {
           background: #dc2626;
         }
 
-        /* ── MAIN ────────────────────────────────────────────────── */
+        /* Main */
         .main-content {
           flex: 1;
           max-width: 1400px;
@@ -281,100 +248,62 @@ function App() {
           padding: 1.5rem;
         }
 
-        /* ── FOOTER ──────────────────────────────────────────────── */
+        /* Footer */
         .site-footer {
           background: #0f172a;
-          color: #e2e8f0;
+          color: #cbd5e1;
           margin-top: auto;
         }
 
-        .footer-container {
+        .footer-content {
           max-width: 1400px;
           margin: 0 auto;
-          padding: 3rem 1.5rem 2rem;
-          display: grid;
-          grid-template-columns: 1fr 2fr;
-          gap: 3rem;
-        }
-
-        .footer-brand h2 {
-          color: white;
-          font-size: 1.6rem;
-          margin-bottom: 0.6rem;
+          padding: 2rem 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1rem;
+          text-align: center;
         }
 
         .footer-links {
           display: flex;
+          gap: 1.5rem;
           flex-wrap: wrap;
-          gap: 3rem;
+          justify-content: center;
         }
 
-        .link-group {
-          min-width: 140px;
-        }
-
-        .link-group h3 {
-          color: white;
-          font-size: 1.05rem;
-          margin-bottom: 1rem;
-        }
-
-        .link-group a {
-          display: block;
-          color: #cbd5e1;
-          text-decoration: none;
-          margin-bottom: 0.7rem;
-          font-size: 0.95rem;
-          transition: color 0.2s;
-        }
-
-        .link-group a:hover {
-          color: white;
-        }
-
-        .footer-bottom {
-          border-top: 1px solid #334155;
-          padding: 1.2rem 1.5rem;
-          text-align: center;
-          font-size: 0.9rem;
+        .footer-links a {
           color: #94a3b8;
+          text-decoration: none;
+          font-size: 0.95rem;
         }
 
-        /* ── RESPONSIVE ──────────────────────────────────────────── */
+        .footer-links a:hover {
+          color: white;
+        }
+
+        /* Responsive adjustments */
         @media (max-width: 1024px) {
-          .header-container {
+          .header-inner {
             flex-direction: column;
             align-items: stretch;
-            gap: 1.2rem;
           }
 
-          .search-wrapper {
+          .search-container {
             order: 3;
             max-width: none;
-          }
-
-          .footer-container {
-            grid-template-columns: 1fr;
-            gap: 2.5rem;
           }
         }
 
         @media (max-width: 640px) {
-          .logo { font-size: 1.6rem; }
+          .logo h1 {
+            font-size: 1.6rem;
+          }
 
-          .main-nav {
-            flex-wrap: wrap;
+          .nav-bar {
             justify-content: center;
             gap: 1rem;
-          }
-
-          .search-input {
-            padding: 0.7rem 0.9rem 0.7rem 2.6rem;
-            font-size: 0.95rem;
-          }
-
-          .footer-container {
-            padding: 2.5rem 1rem 1.8rem;
           }
         }
       `}</style>
