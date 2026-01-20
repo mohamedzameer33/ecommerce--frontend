@@ -5,9 +5,6 @@ import Chart from 'chart.js/auto';
 const AdminPanel = () => {
   const [completedOrders, setCompletedOrders] = useState([]);
   const [products, setProducts] = useState([]);
-  const [editingStock, setEditingStock] = useState(null);
-  const [updatedStock, setUpdatedStock] = useState("");
-
   const [newProduct, setNewProduct] = useState({
     name: '',
     price: '',
@@ -15,7 +12,6 @@ const AdminPanel = () => {
     stock: '',
     imageUrl: ''
   });
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -106,10 +102,12 @@ const AdminPanel = () => {
       topProducts
     });
 
+    // Slight delay helps ensure canvas elements are mounted
     setTimeout(() => renderCharts(orders), 150);
   };
 
   const renderCharts = (orders) => {
+    // ── Revenue Trend (Line Chart) ───────────────────────────────────────
     const salesByDate = {};
     orders.forEach(o => {
       const date = new Date(o.orderDate).toLocaleDateString('en-CA');
@@ -155,6 +153,7 @@ const AdminPanel = () => {
       });
     }
 
+    // ── Top Products (Doughnut Chart) ────────────────────────────────────
     const pieCtx = document.getElementById('topProductsChart');
     if (pieCtx && stats.topProducts.length > 0) {
       if (topProductsChartRef.current) topProductsChartRef.current.destroy();
@@ -225,29 +224,6 @@ const AdminPanel = () => {
       fetchData();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to delete product');
-    }
-  };
-
-  const handleEditStock = (product) => {
-    setEditingStock(product.id);
-    setUpdatedStock(product.stock.toString());
-  };
-
-  const handleSaveStock = async (id) => {
-    if (!updatedStock || Number(updatedStock) < 0) {
-      alert("Invalid stock value");
-      return;
-    }
-
-    try {
-      await axios.put(`https://ecommerce-backend-production-8455.up.railway.app/api/products/${id}`, {
-        stock: parseInt(updatedStock, 10)
-      });
-      alert("Stock updated successfully");
-      setEditingStock(null);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to update stock");
     }
   };
 
@@ -384,12 +360,69 @@ const AdminPanel = () => {
           height: 420px;
         }
 
+        .chart-card h3 {
+          margin-bottom: 1.2rem;
+          font-size: 1.3rem;
+        }
+
+        .card-content {
+          height: calc(100% - 60px);
+        }
+
+        canvas {
+          width: 100% !important;
+          height: 100% !important;
+        }
+
         .admin-card {
           background: var(--card);
           border-radius: 16px;
           padding: 1.8rem;
           box-shadow: var(--shadow);
           margin-bottom: 2rem;
+        }
+
+        input {
+          width: 100%;
+          padding: 0.9rem;
+          margin: 0.7rem 0;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          font-size: 1rem;
+        }
+
+        input:focus {
+          outline: none;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        .admin-btn {
+          background: var(--primary);
+          color: white;
+          border: none;
+          padding: 0.9rem 1.5rem;
+          border-radius: 10px;
+          cursor: pointer;
+          font-weight: 500;
+          transition: 0.2s;
+        }
+
+        .admin-btn:hover {
+          background: var(--primary-dark);
+        }
+
+        .delete-btn {
+          background: var(--danger);
+          color: white;
+          border: none;
+          padding: 0.6rem 1.2rem;
+          border-radius: 8px;
+          cursor: pointer;
+        }
+
+        .delete-btn:hover {
+          background: #dc2626;
         }
 
         .table-wrapper {
@@ -408,45 +441,49 @@ const AdminPanel = () => {
           border-bottom: 1px solid var(--border);
         }
 
-        .edit-input {
-          width: 80px;
-          padding: 0.4rem;
-          border-radius: 6px;
+        th {
+          background: #f1f5f9;
+          font-weight: 600;
+          color: var(--text-light);
+          text-transform: uppercase;
+          font-size: 0.85rem;
+        }
+
+        tr:hover {
+          background: #f8fafc;
+        }
+
+        .image-preview {
+          max-width: 160px;
+          border-radius: 10px;
+          margin: 0.8rem 0;
           border: 1px solid var(--border);
         }
 
-        .edit-btn {
-          background: var(--accent);
-          color: white;
-          border: none;
-          padding: 0.5rem 1rem;
-          border-radius: 8px;
-          cursor: pointer;
-          margin-right: 6px;
+        .loading, .error {
+          padding: 8rem 2rem;
+          text-align: center;
+          font-size: 1.4rem;
+          color: var(--text-light);
         }
 
-        .save-btn {
-          background: var(--primary);
-          color: white;
-          border: none;
-          padding: 0.5rem 1rem;
-          border-radius: 8px;
-          cursor: pointer;
-        }
+        .error { color: var(--danger); }
 
-        .delete-btn {
-          background: var(--danger);
-          color: white;
-          border: none;
-          padding: 0.6rem 1.2rem;
-          border-radius: 8px;
-          cursor: pointer;
+        @media (max-width: 1100px) {
+          .charts-row { grid-template-columns: 1fr; }
+          .chart-card { height: 400px; }
         }
 
         @media (max-width: 768px) {
           .admin-layout { flex-direction: column; }
-          .sidebar { width: 100%; text-align: center; }
-          .charts-row { grid-template-columns: 1fr; }
+          .sidebar { width: 100%; text-align: center; padding: 1.8rem 1rem; }
+          .main-content { padding: 1.5rem; }
+          .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 500px) {
+          .stats-grid { grid-template-columns: 1fr; }
+          .welcome h1 { font-size: 1.8rem; }
         }
       `}</style>
 
@@ -489,12 +526,53 @@ const AdminPanel = () => {
           <div className="charts-row">
             <div className="chart-card">
               <h3>Revenue Trend</h3>
-              <canvas id="salesChart"></canvas>
+              <div className="card-content">
+                <canvas id="salesChart"></canvas>
+              </div>
             </div>
             <div className="chart-card">
               <h3>Top Selling Products</h3>
-              <canvas id="topProductsChart"></canvas>
+              <div className="card-content">
+                <canvas id="topProductsChart"></canvas>
+              </div>
             </div>
+          </div>
+
+          <div className="admin-card">
+            <h3>Add New Product</h3>
+            <input
+              placeholder="Product Name *"
+              value={newProduct.name}
+              onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder="Price *"
+              value={newProduct.price}
+              onChange={e => setNewProduct({ ...newProduct, price: e.target.value })}
+            />
+            <input
+              placeholder="Description"
+              value={newProduct.description}
+              onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
+            />
+            <input
+              type="number"
+              placeholder="Stock Quantity *"
+              value={newProduct.stock}
+              onChange={e => setNewProduct({ ...newProduct, stock: e.target.value })}
+            />
+            <input
+              placeholder="Image URL (optional)"
+              value={newProduct.imageUrl}
+              onChange={e => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
+            />
+            {newProduct.imageUrl && (
+              <img src={newProduct.imageUrl} alt="preview" className="image-preview" />
+            )}
+            <button onClick={handleAddProduct} className="admin-btn" style={{ marginTop: '1rem' }}>
+              Add Product
+            </button>
           </div>
 
           <div className="admin-card">
@@ -516,33 +594,11 @@ const AdminPanel = () => {
                       <td>{p.id}</td>
                       <td>{p.name}</td>
                       <td>${Number(p.price).toFixed(2)}</td>
+                      <td>{p.stock}</td>
                       <td>
-                        {editingStock === p.id ? (
-                          <input
-                            type="number"
-                            className="edit-input"
-                            value={updatedStock}
-                            onChange={e => setUpdatedStock(e.target.value)}
-                          />
-                        ) : (
-                          p.stock
-                        )}
-                      </td>
-                      <td>
-                        {editingStock === p.id ? (
-                          <button className="save-btn" onClick={() => handleSaveStock(p.id)}>
-                            Save
-                          </button>
-                        ) : (
-                          <>
-                            <button className="edit-btn" onClick={() => handleEditStock(p)}>
-                              Edit Stock
-                            </button>
-                            <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>
-                              Delete
-                            </button>
-                          </>
-                        )}
+                        <button className="delete-btn" onClick={() => handleDeleteProduct(p.id)}>
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -551,6 +607,33 @@ const AdminPanel = () => {
             </div>
           </div>
 
+          <div className="admin-card">
+            <h3>Completed Orders</h3>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completedOrders.map(o => (
+                    <tr key={o.id}>
+                      <td>{o.id}</td>
+                      <td>{o.user?.username || '—'}</td>
+                      <td>{o.product?.name || '—'}</td>
+                      <td>{o.quantity}</td>
+                      <td>{new Date(o.orderDate).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </>
